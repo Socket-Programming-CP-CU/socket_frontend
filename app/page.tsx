@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import LoginScreen from "./components/LoginScreen.tsx";
-import NavBar from "./components/NavBar";
+import NavBar from "./components/NavBar.js";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 // (Import FontAwesome Icons ที่นี่)
