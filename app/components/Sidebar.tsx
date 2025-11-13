@@ -13,11 +13,13 @@ const AVATAR_COLORS = [
 ];
 
 const getAvatar = (name: string, size: string = "w-10 h-10") => {
-  const initial = name.charAt(0).toUpperCase();
+  const initial = name ? name.charAt(0).toUpperCase() : "?";
   const color =
     AVATAR_COLORS[
       Math.abs(
-        name.split("").reduce((acc, char) => char.charCodeAt(0) + acc, 0)
+        (name || "A")
+          .split("")
+          .reduce((acc, char) => char.charCodeAt(0) + acc, 0)
       ) % AVATAR_COLORS.length
     ];
   return (
@@ -30,7 +32,11 @@ const getAvatar = (name: string, size: string = "w-10 h-10") => {
 };
 
 const getGroupAvatar = (name: string, size: string = "w-10 h-10") => {
-  const initial = name.charAt(0) === "#" ? "#" : name.charAt(0).toUpperCase();
+  const initial = name
+    ? name.charAt(0) === "#"
+      ? "#"
+      : name.charAt(0).toUpperCase()
+    : "G";
   return (
     <div
       className={`${size} rounded-full bg-gray-600 flex-shrink-0 flex items-center justify-center font-bold text-lg`}
@@ -40,45 +46,62 @@ const getGroupAvatar = (name: string, size: string = "w-10 h-10") => {
   );
 };
 
-// Types (ควรย้ายไปไฟล์ types.ts)
-type User = { id: string; name: string };
-type Group = { id: string; name: string };
-type JoinableGroup = { id: string; name: string; members: number };
+// Types (แก้ให้ตรงกับ API Spec)
+type User = {
+  username: string;
+  is_online: boolean;
+};
+type Group = {
+  group_id: number;
+  group_name: string;
+  is_private: boolean;
+  is_direct: boolean;
+  is_member: boolean; // สมมติว่า Backend ส่งมา
+};
 // --- (จบส่วน utils) ---
 
 type SidebarProps = {
   username: string;
   activePanel: string;
-  privateChats: User[];
+  // privateChats: User[]; // API Spec ไม่มี private chat แยก
   myGroups: Group[];
   onlineUsers: User[];
-  joinableGroups: JoinableGroup[];
+  joinableGroups: Group[]; // ใช้ Type เดียวกัน
   // Handlers
-  onUserClick: (user: User) => void;
   onGroupClick: (group: Group) => void;
-  onJoinGroup: (group: JoinableGroup) => void;
-  onCreateGroup: (groupName: string) => void;
+  onJoinGroup: (group: Group) => void;
+  onCreateGroup: (
+    groupName: string,
+    isPrivate: boolean,
+    password: string
+  ) => void;
+  // onUserClick: (user: User) => void; // API Spec ไม่มี R7
 };
 
 export default function Sidebar({
   username,
   activePanel,
-  privateChats,
+  // privateChats,
   myGroups,
   onlineUsers,
   joinableGroups,
-  onUserClick,
   onGroupClick,
   onJoinGroup,
   onCreateGroup,
-}: SidebarProps) {
+}: // onUserClick,
+SidebarProps) {
   // State ภายในสำหรับช่อง Input "Create Group"
   const [newGroupName, setNewGroupName] = useState("");
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [groupPassword, setGroupPassword] = useState("");
 
   const handleCreateGroup = () => {
     if (newGroupName.trim() === "") return;
-    onCreateGroup(newGroupName); // เรียกฟังก์ชันแม่
-    setNewGroupName(""); // เคลียร์ช่อง input
+    onCreateGroup(newGroupName, isPrivate, groupPassword); // เรียกฟังก์ชันแม่
+    // เคลียร์ช่อง input
+    setNewGroupName("");
+    setIsPrivate(false);
+    setGroupPassword("");
   };
 
   return (
@@ -87,71 +110,43 @@ export default function Sidebar({
         id="list-panels-container"
         className="flex-1 flex flex-col overflow-y-auto"
       >
-        {/* --- Panel 1: Private Chats (R7) --- */}
-        {/* ใช้ className แบบมีเงื่อนไขเพื่อซ่อน/แสดง */}
+        {/* --- Panel 1: My Chats (R7, R11) --- */}
+        {/* API Spec รวม Private/Group ไว้ด้วยกัน */}
         <div
-          id="panel-private-chats"
+          id="panel-my-chats"
           className={`list-panel flex-1 flex flex-col ${
-            activePanel === "panel-private-chats" ? "" : "hidden"
+            activePanel === "panel-my-chats" ? "" : "hidden"
           }`}
         >
           <header className="p-4 border-b border-gray-700">
-            <h2 className="text-xl font-bold">Private Chats</h2>
+            <h2 className="text-xl font-bold">My Chats</h2>
           </header>
           <div
-            id="private-chats-list"
-            className="flex-1 p-4 space-y-2 overflow-y-auto"
-          >
-            {privateChats.length === 0 ? (
-              <p className="text-gray-400 text-center p-4">
-                Click an online user to start a chat.
-              </p>
-            ) : (
-              privateChats.map((user) => (
-                <div
-                  key={user.id}
-                  onClick={() => onUserClick(user)}
-                  className="flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer space-x-3"
-                >
-                  {getAvatar(user.name)}
-                  <span className="font-medium">{user.name}</span>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-        {/* --- Panel 2: My Groups (R11) --- */}
-        <div
-          id="panel-groups"
-          className={`list-panel flex-1 flex flex-col ${
-            activePanel === "panel-groups" ? "" : "hidden"
-          }`}
-        >
-          <header className="p-4 border-b border-gray-700">
-            <h2 className="text-xl font-bold">My Groups</h2>
-          </header>
-          <div
-            id="groups-list"
+            id="my-chats-list"
             className="flex-1 p-4 space-y-2 overflow-y-auto"
           >
             {myGroups.length === 0 ? (
               <p className="text-gray-400 text-center p-4">
-                You haven't joined any groups. Go to Explore!
+                No chats yet. Go to Explore to join a group.
               </p>
             ) : (
               myGroups.map((group) => (
                 <div
-                  key={group.id}
+                  key={group.group_id}
                   onClick={() => onGroupClick(group)}
                   className="flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer space-x-3"
                 >
-                  {getGroupAvatar(group.name)}
-                  <span className="font-medium">{group.name}</span>
+                  {/* ถ้าเป็น Direct Message (R7) ให้ใช้ Avatar, ถ้าไม่ ให้ใช้ Group Avatar */}
+                  {group.is_direct
+                    ? getAvatar(group.group_name)
+                    : getGroupAvatar(group.group_name)}
+                  <span className="font-medium">{group.group_name}</span>
                 </div>
               ))
             )}
           </div>
         </div>
+
         {/* --- Panel 3: Online Users (R4) --- */}
         <div
           id="panel-online-users"
@@ -162,7 +157,7 @@ export default function Sidebar({
           <header className="p-4 border-b border-gray-700">
             <h2 className="text-xl font-bold">Online Users</h2>
             <span id="online-user-count" className="text-sm text-gray-400">
-              {onlineUsers.length} users
+              {onlineUsers.length} users online
             </span>
           </header>
           <div
@@ -171,16 +166,24 @@ export default function Sidebar({
           >
             {onlineUsers.map((user) => (
               <div
-                key={user.id}
-                onClick={() => onUserClick(user)}
-                className="flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer space-x-3"
+                key={user.username}
+                // onClick={() => onUserClick(user)} // API Spec ไม่มี R7
+                className="flex items-center p-2 rounded-lg space-x-3"
               >
-                {getAvatar(user.name)}
-                <span className="font-medium">{user.name}</span>
+                {getAvatar(user.username)}
+                <span className="font-medium">{user.username}</span>
+                <span
+                  className={`text-sm ${
+                    user.is_online ? "text-green-400" : "text-gray-500"
+                  }`}
+                >
+                  {user.is_online ? "● Online" : "○ Offline"}
+                </span>
               </div>
             ))}
           </div>
         </div>
+
         {/* --- Panel 4: Explore Groups (R9, R10) --- */}
         <div
           id="panel-explore-groups"
@@ -197,16 +200,16 @@ export default function Sidebar({
           >
             {joinableGroups.map((group) => (
               <div
-                key={group.id}
+                key={group.group_id}
                 className="flex justify-between items-center p-3 rounded-lg bg-gray-900"
               >
                 <div className="flex items-center space-x-3">
-                  {getGroupAvatar(group.name)}
+                  {getGroupAvatar(group.group_name)}
                   <div>
-                    <span className="font-medium">{group.name}</span>
-                    <span className="text-sm text-gray-400 block">
+                    <span className="font-medium">{group.group_name}</span>
+                    {/* <span className="text-sm text-gray-400 block">
                       {group.members} members
-                    </span>
+                    </span> */}
                   </div>
                 </div>
                 <button
@@ -219,9 +222,8 @@ export default function Sidebar({
             ))}
           </div>
         </div>
+
         {/* --- Panel 5: Create Group (R8) --- */}
-        // ... (โค้ดส่วนอื่นเหมือนเดิม) ... // --- Panel 5: Create Group (R8)
-        ---
         <div
           id="panel-create-group"
           className={`list-panel flex-1 flex flex-col ${
@@ -241,7 +243,7 @@ export default function Sidebar({
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
             />
-            {/* --- ส่วนที่เพิ่มเข้ามา --- */}
+            {/* --- ส่วนที่อัปเดต --- */}
             <div className="flex items-center space-x-2">
               <input
                 type="checkbox"
@@ -260,7 +262,7 @@ export default function Sidebar({
               value={groupPassword}
               onChange={(e) => setGroupPassword(e.target.value)}
             />
-            {/* --- จบส่วนที่เพิ่มเข้ามา --- */}
+            {/* --- จบส่วนที่อัปเดต --- */}
             <button
               id="create-group-confirm-btn"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all"
@@ -270,7 +272,6 @@ export default function Sidebar({
             </button>
           </div>
         </div>
-        // ... (โค้ดส่วนอื่นเหมือนเดิม) ...
       </div>
 
       {/* User Name Display (Bottom) */}

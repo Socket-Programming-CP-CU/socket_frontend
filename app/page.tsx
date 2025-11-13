@@ -51,6 +51,7 @@ export default function Home() {
   // --- WebSocket State ---
   const socketRef = useRef<WebSocket | null>(null);
   const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const [_, setForceRender] = useState(0); // ตัวแปรสำหรับ re-render
 
   // --- WebSocket Logic ---
 
@@ -58,10 +59,14 @@ export default function Home() {
   const sendCommand = (payload: object) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify(payload));
+      console.log("Sent:", payload); // Log สิ่งที่ส่ง
     } else {
-      console.error("Socket is not open.");
+      console.error("Socket is not open or not connected.");
       setLoginError("Connection lost. Please refresh.");
       setIsLoggedIn(false);
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+      }
     }
   };
 
@@ -76,14 +81,27 @@ export default function Home() {
   };
 
   // ฟังก์ชันเชื่อมต่อ WebSocket
-  const connectAndSend = (initialMessage: object) => {
+  // -----------  ▼▼▼ นี่คือจุดที่แก้ไข ▼▼▼ -----------
+  const connectAndSend = (initialMessage: {
+    command: string;
+    username: string;
+    password?: string;
+  }) => {
+    // -----------  ▲▲▲ นี่คือจุดที่แก้ไข ▲▲▲ -----------
+
     // TODO: เปลี่ยน URL นี้เป็น ws://... ของ Server เพื่อนคุณ
     const socketUrl = "ws://localhost:12345"; // ใช้พอร์ต 12345 ตาม API Spec
 
     try {
+      if (
+        socketRef.current &&
+        socketRef.current.readyState === WebSocket.OPEN
+      ) {
+        socketRef.current.close();
+      }
       socketRef.current = new WebSocket(socketUrl);
     } catch (error) {
-      setLoginError("Failed to connect to server.");
+      setLoginError("Failed to create WebSocket.");
       return;
     }
 
@@ -101,7 +119,6 @@ export default function Home() {
         clearInterval(healthCheckIntervalRef.current);
       }
       if (isLoggedIn) {
-        // ถ้าเคยล็อกอินแล้ว
         setLoginError("Connection lost. Please refresh.");
         setIsLoggedIn(false);
       }
@@ -114,32 +131,61 @@ export default function Home() {
 
     // --- นี่คือหัวใจหลัก: ตัวรับข้อความจาก Server ---
     socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      console.log("Received:", data);
+      let data;
+      try {
+        data = JSON.parse(event.data);
+      } catch (e) {
+        console.error("Failed to parse JSON:", event.data);
+        return;
+      }
+
+      console.log("Received:", data); // Log ทุกอย่างที่ Server ส่งมา
 
       // --- ตัวจ่ายงาน (Dispatcher) ---
-      switch (data.command) {
-        // --- ตอบกลับ Login/Register ---
-        // (เราต้องสมมติชื่อ command ที่ backend ส่งมา)
-        case "LOGIN_SUCCESS":
-          // @ts-ignore (แก้ initialMessage type ทีหลัง)
-          setUsername(initialMessage.username);
-          setIsLoggedIn(true);
-          setLoginError("");
-          startHealthCheck();
-          break;
-        case "REGISTER_SUCCESS":
-          setLoginError("Register success! Please login.");
+
+      // ตรวจสอบ Response status (ตาม API Spec)
+      if (data.status && data.status !== 200) {
+        console.error("API Error:", data.error);
+        if (data.command === "LOGIN" || data.command === "REGISTER") {
+          setLoginError(data.error || "Login/Register failed.");
           socket.close();
+        }
+        // TODO: แสดง Error อื่นๆ แบบ Toast
+        return;
+      }
+
+      // ตรวจสอบ Command ที่ Server ส่งมา
+      switch (data.command) {
+        // --- ตอบกลับ Login/Register (กรณีสำเร็จ) ---
+        // (เราต้องสมมติชื่อ command ที่ backend ส่งมา)
+        // ผมจะเดาว่า command ที่ส่งมาคือ command ที่เราร้องขอไป
+        case "LOGIN":
+          if (data.status === 200) {
+            setUsername(initialMessage.username);
+            setIsLoggedIn(true);
+            setLoginError("");
+            startHealthCheck();
+          }
+          break;
+        case "REGISTER":
+          if (data.status === 200) {
+            setLoginError("Register success! Please login.");
+            socket.close();
+          }
           break;
 
         // --- Server Pushes (ตาม API Spec) ---
         case "PUBLISH_USERS": // (R4)
-          setOnlineUsers(data.users.filter((u: User) => u.username !== username));
+          setOnlineUsers(
+            data.users.filter(
+              (u: User) => u.username !== initialMessage.username
+            )
+          );
           break;
 
         case "PUBLISH_ALL_GROUPS": // (R9)
           // *ต้องให้ Backend เพิ่ม is_member: boolean ใน groups array*
+          // ถ้า Backend ไม่มี is_member ให้แก้ Logic ตรงนี้
           setMyGroups(data.groups.filter((g: Group) => g.is_member));
           setJoinableGroups(
             data.groups.filter(
@@ -153,23 +199,17 @@ export default function Home() {
           // อัปเดตข้อมูล members (ถ้ามี)
           if (data.members) {
             setCurrentRoomInfo(
-              `Members: ${data.members.map((m: Member) => m.username).join(", ")}`
+              `Members: ${data.members
+                .map((m: Member) => m.username)
+                .join(", ")}`
             );
           }
           break;
 
-        // --- ตอบกลับ Error ---
+        // --- ตอบกลับ Error (อีกรูปแบบ) ---
         case "ERROR": // สมมติว่ามี command นี้
           setLoginError(data.error);
           if (!isLoggedIn) socket.close(); // ปิดถ้า login ไม่ผ่าน
-          break;
-
-        // --- ตอบกลับอื่นๆ (เช่น CREATE_GROUP, CREATE_MESSAGE) ---
-        default:
-          if (data.status !== 200 && data.error) {
-            console.error("API Error:", data.error);
-            // TODO: แสดง Error แบบ Toast
-          }
           break;
       }
     };
@@ -199,9 +239,7 @@ export default function Home() {
       command: "CREATE_MESSAGE",
       message: messageText,
     });
-    // เราจะไม่ setMessages ทันที (Optimistic Update)
-    // แต่จะรอให้ Server ส่ง PUBLISH_CURRENT_CHAT กลับมา
-    // (ซึ่ง onmessage จะจัดการให้เอง)
+    // ไม่ต้อง setMessages เอง รอ Server ส่ง PUBLISH_CURRENT_CHAT กลับมา
   };
 
   const handleSelectGroup = (group: Group) => {
@@ -210,14 +248,14 @@ export default function Home() {
     setCurrentRoomName(group.group_name);
     setCurrentRoomInfo("Loading...");
     setMessages([]); // เคลียร์ข้อความเก่า
-    
+
     sendCommand({
       command: "SELECT_GROUP",
       group_id: group.group_id,
     });
   };
 
-  const handleJoinGroup = (group: Group) | (joinableGroup: any) => {
+  const handleJoinGroup = (group: Group) => {
     // R10: API ของคุณไม่มี "Join"
     // ผมจึงสมมติว่าการ "Select" กลุ่มที่เรายังไม่อยู่ = "Join"
     setCurrentRoomId(group.group_id);
@@ -243,7 +281,7 @@ export default function Home() {
       command: "CREATE_GROUP",
       group_name: groupName,
       is_private: isPrivate,
-      password: password,
+      password: password || "", // ส่ง "" ถ้า password ว่าง
     });
     // Server ควรจะส่ง PUBLISH_ALL_GROUPS มาอัปเดต list
     setActivePanel("panel-my-chats"); // สลับไปหน้า "My Groups"
@@ -264,19 +302,29 @@ export default function Home() {
   // 2. ถ้าล็อกอินแล้ว
   return (
     <div className="h-screen flex">
-      <NavBar username={username} onPanelChange={setActivePanel} />
+      <NavBar
+        username={username}
+        onPanelChange={(panelId) => {
+          setActivePanel(panelId);
+          // ถ้ากดสลับ Panel ให้เคลียร์ห้องที่เลือกไว้
+          // setCurrentRoomId(null);
+          // setCurrentRoomName(null);
+          // setCurrentRoomInfo(null);
+          // setMessages([]);
+        }}
+      />
 
       <Sidebar
         username={username}
         activePanel={activePanel}
-        privateChats={[]} // API Spec ของคุณไม่มี Private Chat (R7) โดยตรง
+        // privateChats={[]} // API Spec ไม่มี Private Chat (R7) โดยตรง
         myGroups={myGroups} // (R11)
         onlineUsers={onlineUsers} // (R4)
         joinableGroups={joinableGroups} // (R9)
-        onUserClick={() => {}} // API Spec ไม่มี R7
         onGroupClick={handleSelectGroup} // (R5)
         onJoinGroup={handleJoinGroup} // (R10)
         onCreateGroup={handleCreateGroup} // (R8)
+        // onUserClick={() => {}} // API Spec ไม่มี R7
       />
 
       <ChatWindow

@@ -27,6 +27,13 @@ export default function LoginScreen({
     onRegister(username, password);
   };
 
+  // จัดการการกด Enter
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleLogin();
+    }
+  };
+
   return (
     <div
       id="login-screen"
@@ -42,6 +49,7 @@ export default function LoginScreen({
           className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          onKeyPress={handleKeyPress}
         />
         <input
           type="password"
@@ -50,6 +58,7 @@ export default function LoginScreen({
           className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 mb-4"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          onKeyPress={handleKeyPress}
         />
         <div className="flex space-x-4">
           <button
