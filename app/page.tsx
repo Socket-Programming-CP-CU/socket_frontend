@@ -1,109 +1,267 @@
 // app/page.tsx
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import LoginScreen from "./components/LoginScreen";
 import NavBar from "./components/NavBar";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 
-// --- Types (ควรย้ายไปไฟล์ types.ts) ---
-type User = { id: string; name: string };
-type Group = { id: string; name: string };
-type JoinableGroup = { id: string; name: string; members: number };
-type Message = { sender: string; text: string; time: string };
+// --- Types (ตรงตาม API Spec) ---
+type User = {
+  username: string;
+  is_online: boolean;
+};
+type Group = {
+  group_id: number; // API ใช้ int
+  group_name: string;
+  is_private: boolean;
+  is_direct: boolean;
+  is_member: boolean; // *สมมติว่า backend เพิ่ม flag นี้มาให้*
+};
+type Message = {
+  chat_id: number;
+  message: string;
+  username: string;
+  timestamp: string;
+};
+type Member = {
+  username: string;
+  is_online: boolean;
+};
 // --- จบส่วน Types ---
 
 export default function Home() {
   // --- State หลักของแอป ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
-  const [activePanel, setActivePanel] = useState("panel-private-chats");
+  const [loginError, setLoginError] = useState("");
+  const [activePanel, setActivePanel] = useState("panel-my-chats"); // เปลี่ยนค่าเริ่มต้น
 
-  // --- State สำหรับเก็บข้อมูล (จำลอง) ---
-  const [privateChats, setPrivateChats] = useState<User[]>([]);
-  const [myGroups, setMyGroups] = useState<Group[]>([
-    { id: "g1", name: "#General" },
-    { id: "g2", name: "#Project-Alpha" },
-  ]);
-  const [onlineUsers, setOnlineUsers] = useState<User[]>([
-    { id: "u1", name: "Alice" },
-    { id: "u2", name: "Bob" },
-  ]);
-  const [joinableGroups, setJoinableGroups] = useState<JoinableGroup[]>([
-    { id: "g3", name: "#Random", members: 5 },
-    { id: "g4", name: "#Gaming", members: 2 },
-  ]);
+  // --- State สำหรับเก็บข้อมูล (จาก Server) ---
+  const [myGroups, setMyGroups] = useState<Group[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
+  const [joinableGroups, setJoinableGroups] = useState<Group[]>([]);
 
   // --- State ของห้องแชทปัจจุบัน ---
+  const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
   const [currentRoomInfo, setCurrentRoomInfo] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]); // ตรงตาม PUBLISH_CHATS
 
-  // --- TODO: Socket.io Logic (จะมาทำทีหลัง) ---
-  useEffect(() => {
-    // TODO: เชื่อมต่อ Socket.io ที่นี่
-  }, [currentRoomName]);
+  // --- WebSocket State ---
+  const socketRef = useRef<WebSocket | null>(null);
+  const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // --- Handlers (ฟังก์ชันที่จะส่งให้ลูกๆ) ---
+  // --- WebSocket Logic ---
 
-  const handleLogin = (name: string) => {
-    // TODO: socket.emit('join_request', name)
-    setUsername(name);
-    setIsLoggedIn(true);
-  };
-
-  const handleSendMessage = (messageText: string) => {
-    const newMessage: Message = {
-      sender: username, // เราคือผู้ส่ง
-      text: messageText,
-      time: new Date().toLocaleTimeString("en-US", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
-    };
-
-    // TODO: socket.emit('send_message', { room: currentRoomName, message: newMessage });
-
-    // Mock: แสดงข้อความของเราทันที
-    setMessages((prev) => [...prev, newMessage]);
-  };
-
-  const handleUserClick = (user: User) => {
-    setCurrentRoomName(`Private: ${user.name}`);
-    setCurrentRoomInfo("Online");
-    setMessages([]); // เคลียร์ข้อความเก่า (TODO: ควรโหลดประวัติแชท)
-
-    if (!privateChats.find((u) => u.id === user.id)) {
-      setPrivateChats((prev) => [...prev, user]);
+  // ฟังก์ชันกลางสำหรับส่ง JSON command
+  const sendCommand = (payload: object) => {
+    if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+      socketRef.current.send(JSON.stringify(payload));
+    } else {
+      console.error("Socket is not open.");
+      setLoginError("Connection lost. Please refresh.");
+      setIsLoggedIn(false);
     }
   };
 
-  const handleGroupClick = (group: Group) => {
-    setCurrentRoomName(`Group: ${group.name}`);
-    setCurrentRoomInfo("You are a member");
+  // เริ่ม Health Check (ตาม API)
+  const startHealthCheck = () => {
+    if (healthCheckIntervalRef.current) {
+      clearInterval(healthCheckIntervalRef.current);
+    }
+    healthCheckIntervalRef.current = setInterval(() => {
+      sendCommand({ command: "HEALTH" });
+    }, 5000);
+  };
+
+  // ฟังก์ชันเชื่อมต่อ WebSocket
+  const connectAndSend = (initialMessage: object) => {
+    // TODO: เปลี่ยน URL นี้เป็น ws://... ของ Server เพื่อนคุณ
+    const socketUrl = "ws://localhost:12345"; // ใช้พอร์ต 12345 ตาม API Spec
+
+    try {
+      socketRef.current = new WebSocket(socketUrl);
+    } catch (error) {
+      setLoginError("Failed to connect to server.");
+      return;
+    }
+
+    const socket = socketRef.current;
+
+    socket.onopen = () => {
+      console.log("WebSocket connected!");
+      setLoginError("Connecting...");
+      sendCommand(initialMessage); // ส่ง LOGIN หรือ REGISTER
+    };
+
+    socket.onclose = () => {
+      console.log("WebSocket disconnected.");
+      if (healthCheckIntervalRef.current) {
+        clearInterval(healthCheckIntervalRef.current);
+      }
+      if (isLoggedIn) {
+        // ถ้าเคยล็อกอินแล้ว
+        setLoginError("Connection lost. Please refresh.");
+        setIsLoggedIn(false);
+      }
+    };
+
+    socket.onerror = (error) => {
+      console.error("WebSocket Error:", error);
+      setLoginError("Connection error.");
+    };
+
+    // --- นี่คือหัวใจหลัก: ตัวรับข้อความจาก Server ---
+    socket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      console.log("Received:", data);
+
+      // --- ตัวจ่ายงาน (Dispatcher) ---
+      switch (data.command) {
+        // --- ตอบกลับ Login/Register ---
+        // (เราต้องสมมติชื่อ command ที่ backend ส่งมา)
+        case "LOGIN_SUCCESS":
+          // @ts-ignore (แก้ initialMessage type ทีหลัง)
+          setUsername(initialMessage.username);
+          setIsLoggedIn(true);
+          setLoginError("");
+          startHealthCheck();
+          break;
+        case "REGISTER_SUCCESS":
+          setLoginError("Register success! Please login.");
+          socket.close();
+          break;
+
+        // --- Server Pushes (ตาม API Spec) ---
+        case "PUBLISH_USERS": // (R4)
+          setOnlineUsers(data.users.filter((u: User) => u.username !== username));
+          break;
+
+        case "PUBLISH_ALL_GROUPS": // (R9)
+          // *ต้องให้ Backend เพิ่ม is_member: boolean ใน groups array*
+          setMyGroups(data.groups.filter((g: Group) => g.is_member));
+          setJoinableGroups(
+            data.groups.filter(
+              (g: Group) => !g.is_private && !g.is_member && !g.is_direct
+            )
+          );
+          break;
+
+        case "PUBLISH_CURRENT_CHAT": // (R6)
+          setMessages(data.chats);
+          // อัปเดตข้อมูล members (ถ้ามี)
+          if (data.members) {
+            setCurrentRoomInfo(
+              `Members: ${data.members.map((m: Member) => m.username).join(", ")}`
+            );
+          }
+          break;
+
+        // --- ตอบกลับ Error ---
+        case "ERROR": // สมมติว่ามี command นี้
+          setLoginError(data.error);
+          if (!isLoggedIn) socket.close(); // ปิดถ้า login ไม่ผ่าน
+          break;
+
+        // --- ตอบกลับอื่นๆ (เช่น CREATE_GROUP, CREATE_MESSAGE) ---
+        default:
+          if (data.status !== 200 && data.error) {
+            console.error("API Error:", data.error);
+            // TODO: แสดง Error แบบ Toast
+          }
+          break;
+      }
+    };
+  };
+
+  // --- Handlers (ที่จะส่งให้ลูกๆ) ---
+
+  const handleLogin = (name: string, pass: string) => {
+    connectAndSend({
+      command: "LOGIN",
+      username: name,
+      password: pass,
+    });
+  };
+
+  const handleRegister = (name: string, pass: string) => {
+    connectAndSend({
+      command: "REGISTER",
+      username: name,
+      password: pass,
+    });
+  };
+
+  const handleSendMessage = (messageText: string) => {
+    // R6: CREATE_MESSAGE
+    sendCommand({
+      command: "CREATE_MESSAGE",
+      message: messageText,
+    });
+    // เราจะไม่ setMessages ทันที (Optimistic Update)
+    // แต่จะรอให้ Server ส่ง PUBLISH_CURRENT_CHAT กลับมา
+    // (ซึ่ง onmessage จะจัดการให้เอง)
+  };
+
+  const handleSelectGroup = (group: Group) => {
+    // R5: SELECT_GROUP
+    setCurrentRoomId(group.group_id);
+    setCurrentRoomName(group.group_name);
+    setCurrentRoomInfo("Loading...");
     setMessages([]); // เคลียร์ข้อความเก่า
+    
+    sendCommand({
+      command: "SELECT_GROUP",
+      group_id: group.group_id,
+    });
   };
 
-  const handleJoinGroup = (group: JoinableGroup) => {
-    // TODO: socket.emit('join_group', group.name)
-    setMyGroups((prev) => [...prev, { id: group.id, name: group.name }]);
-    setJoinableGroups((prev) => prev.filter((g) => g.id !== group.id));
+  const handleJoinGroup = (group: Group) | (joinableGroup: any) => {
+    // R10: API ของคุณไม่มี "Join"
+    // ผมจึงสมมติว่าการ "Select" กลุ่มที่เรายังไม่อยู่ = "Join"
+    setCurrentRoomId(group.group_id);
+    setCurrentRoomName(group.group_name);
+    setCurrentRoomInfo("Joining...");
+    setMessages([]);
+
+    sendCommand({
+      command: "SELECT_GROUP",
+      group_id: group.group_id,
+    });
+    // Server ควรจะส่ง PUBLISH_ALL_GROUPS มาอัปเดต list
+    setActivePanel("panel-my-chats"); // สลับกลับมาหน้าแชท
   };
 
-  const handleCreateGroup = (groupName: string) => {
-    // TODO: socket.emit('create_group', groupName)
-    const newGroup = { id: "g" + Math.random(), name: groupName };
-    setMyGroups((prev) => [...prev, newGroup]);
-    setActivePanel("panel-groups"); // สลับไปหน้า "My Groups"
+  const handleCreateGroup = (
+    groupName: string,
+    isPrivate: boolean,
+    password: string
+  ) => {
+    // R8: CREATE_GROUP
+    sendCommand({
+      command: "CREATE_GROUP",
+      group_name: groupName,
+      is_private: isPrivate,
+      password: password,
+    });
+    // Server ควรจะส่ง PUBLISH_ALL_GROUPS มาอัปเดต list
+    setActivePanel("panel-my-chats"); // สลับไปหน้า "My Groups"
   };
 
   // --- Render Logic ---
   if (!isLoggedIn) {
-    // 1. ถ้ายังไม่ล็อกอิน: แสดงผลหน้า Login
-    return <LoginScreen onLogin={handleLogin} />;
+    // 1. ถ้ายังไม่ล็อกอิน
+    return (
+      <LoginScreen
+        onLogin={handleLogin}
+        onRegister={handleRegister}
+        loginError={loginError}
+      />
+    );
   }
 
-  // 2. ถ้าล็อกอินแล้ว: แสดงผลหน้าแชท
+  // 2. ถ้าล็อกอินแล้ว
   return (
     <div className="h-screen flex">
       <NavBar username={username} onPanelChange={setActivePanel} />
@@ -111,22 +269,30 @@ export default function Home() {
       <Sidebar
         username={username}
         activePanel={activePanel}
-        privateChats={privateChats}
-        myGroups={myGroups}
-        onlineUsers={onlineUsers}
-        joinableGroups={joinableGroups}
-        onUserClick={handleUserClick}
-        onGroupClick={handleGroupClick}
-        onJoinGroup={handleJoinGroup}
-        onCreateGroup={handleCreateGroup}
+        privateChats={[]} // API Spec ของคุณไม่มี Private Chat (R7) โดยตรง
+        myGroups={myGroups} // (R11)
+        onlineUsers={onlineUsers} // (R4)
+        joinableGroups={joinableGroups} // (R9)
+        onUserClick={() => {}} // API Spec ไม่มี R7
+        onGroupClick={handleSelectGroup} // (R5)
+        onJoinGroup={handleJoinGroup} // (R10)
+        onCreateGroup={handleCreateGroup} // (R8)
       />
 
       <ChatWindow
         username={username}
         roomName={currentRoomName}
         roomInfo={currentRoomInfo}
-        messages={messages}
-        onSendMessage={handleSendMessage}
+        messages={messages.map((m) => ({
+          // แปลงข้อมูลให้ตรงกับ Component
+          sender: m.username,
+          text: m.message,
+          time: new Date(m.timestamp).toLocaleTimeString("en-US", {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
+        }))}
+        onSendMessage={handleSendMessage} // (R6)
       />
     </div>
   );

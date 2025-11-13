@@ -120,7 +120,6 @@ export default function Sidebar({
             )}
           </div>
         </div>
-
         {/* --- Panel 2: My Groups (R11) --- */}
         <div
           id="panel-groups"
@@ -153,7 +152,6 @@ export default function Sidebar({
             )}
           </div>
         </div>
-
         {/* --- Panel 3: Online Users (R4) --- */}
         <div
           id="panel-online-users"
@@ -183,7 +181,6 @@ export default function Sidebar({
             ))}
           </div>
         </div>
-
         {/* --- Panel 4: Explore Groups (R9, R10) --- */}
         <div
           id="panel-explore-groups"
@@ -222,8 +219,9 @@ export default function Sidebar({
             ))}
           </div>
         </div>
-
         {/* --- Panel 5: Create Group (R8) --- */}
+        // ... (โค้ดส่วนอื่นเหมือนเดิม) ... // --- Panel 5: Create Group (R8)
+        ---
         <div
           id="panel-create-group"
           className={`list-panel flex-1 flex flex-col ${
@@ -243,6 +241,26 @@ export default function Sidebar({
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
             />
+            {/* --- ส่วนที่เพิ่มเข้ามา --- */}
+            <div className="flex items-center space-x-2">
+              <input
+                type="checkbox"
+                id="group-is-private-input"
+                className="w-4 h-4 rounded"
+                checked={isPrivate}
+                onChange={(e) => setIsPrivate(e.target.checked)}
+              />
+              <label htmlFor="group-is-private-input">Private Group?</label>
+            </div>
+            <input
+              type="password"
+              id="group-password-input"
+              placeholder="Group Password (optional)"
+              className="w-full bg-gray-700 text-white p-3 rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              value={groupPassword}
+              onChange={(e) => setGroupPassword(e.target.value)}
+            />
+            {/* --- จบส่วนที่เพิ่มเข้ามา --- */}
             <button
               id="create-group-confirm-btn"
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition-all"
@@ -252,6 +270,7 @@ export default function Sidebar({
             </button>
           </div>
         </div>
+        // ... (โค้ดส่วนอื่นเหมือนเดิม) ...
       </div>
 
       {/* User Name Display (Bottom) */}
