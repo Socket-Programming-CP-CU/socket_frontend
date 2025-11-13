@@ -24,8 +24,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      {/* นี่คือจุดที่แก้ไขครับ:
+        เราจะแก้ไขแท็ก <body> ที่มีอยู่แล้ว 
+        โดยเพิ่มคลาส bg-gray-900 และ text-gray-200 เข้าไป
+      */}
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-900 text-gray-200`}
       >
         {children}
       </body>

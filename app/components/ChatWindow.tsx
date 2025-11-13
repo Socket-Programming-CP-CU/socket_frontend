@@ -1,17 +1,15 @@
-// app/components/ChatWindow.tsx
 "use client";
 import { useState, useRef, useEffect } from "react";
 
-// Types (ควรย้ายไปไฟล์ types.ts)
 type Message = {
   sender: string;
   text: string;
-  time: string; //
+  time: string;
 };
 
 type ChatWindowProps = {
-  username: string; // ชื่อของผู้ใช้ที่ล็อกอินอยู่
-  roomName: string | null; // null ถ้ายังไม่ได้เลือกห้อง
+  username: string;
+  roomName: string | null;
   roomInfo: string | null;
   messages: Message[];
   onSendMessage: (messageText: string) => void;
