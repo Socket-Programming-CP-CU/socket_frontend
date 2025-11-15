@@ -159,11 +159,7 @@ export default function Home() {
             (g: Group) => g.is_member === 1
           );
 
-          setMyDMs(
-            allMyGroups.filter(
-              (g: Group) => g.is_direct === 1 && g.have_message === 1
-            )
-          );
+          setMyDMs(allMyGroups.filter((g: Group) => g.is_direct === 1));
           setMyRoomGroups(allMyGroups.filter((g: Group) => g.is_direct === 0));
 
           setJoinableGroups(
