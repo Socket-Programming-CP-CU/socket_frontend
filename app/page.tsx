@@ -4,6 +4,7 @@ import LoginScreen from "./components/LoginScreen";
 import NavBar from "./components/NavBar";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
+import ErrorMessageBox from "./components/ErrorMessageBox";
 
 type User = {
   username: string;
@@ -38,6 +39,9 @@ export default function Home() {
   const [myRoomGroups, setMyRoomGroups] = useState<Group[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
   const [joinableGroups, setJoinableGroups] = useState<Group[]>([]);
+  const [allMyDMs, setAllMyDMs] = useState<Group[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [showError, setShowError] = useState(false);
 
   const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
@@ -46,7 +50,6 @@ export default function Home() {
 
   const socketRef = useRef<WebSocket | null>(null);
   const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [_, setForceRender] = useState(0);
 
   const sendCommand = (payload: object) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -158,8 +161,11 @@ export default function Home() {
           const allMyGroups = data.groups.filter(
             (g: Group) => g.is_member === 1
           );
-
-          setMyDMs(allMyGroups.filter((g: Group) => g.is_direct === 1));
+          const allDMsForState = allMyGroups.filter(
+            (g: Group) => g.is_direct === 1
+          );
+          setAllMyDMs(allDMsForState);
+          setMyDMs(allDMsForState.filter((g: Group) => g.have_message === 1));
           setMyRoomGroups(allMyGroups.filter((g: Group) => g.is_direct === 0));
 
           setJoinableGroups(
@@ -277,20 +283,21 @@ export default function Home() {
   };
 
   const handleUserClick = (user: User) => {
-    const dmGroup = myDMs.find(
+    const dmGroup = allMyDMs.find(
       (g) => g.is_direct === 1 && g.group_name === user.username
     );
 
     if (dmGroup) {
       handleSelectGroup(dmGroup);
     } else {
-      console.error(`Could not find existing DM group for: ${user.username}.`);
-      alert(`Error: Cannot find DM chat for ${user.username}.`);
+      setErrorMessage(`Error: Cannot find DM chat for ${user.username}.`);
+      setShowError(true);
+      setTimeout(() => {
+        setShowError(false);
+        setErrorMessage(null);
+      }, 5000);
     }
-
-    setActivePanel("panel-private-chats");
   };
-
   if (!isLoggedIn) {
     return (
       <LoginScreen
@@ -333,55 +340,65 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex">
-      <NavBar
-        username={username}
-        onPanelChange={(panelId) => {
-          setActivePanel(panelId);
-        }}
-      />
+    <>
+      {showError && (
+        <ErrorMessageBox
+          message={errorMessage}
+          onClose={() => {
+            setShowError(false);
+            setErrorMessage(null);
+          }}
+        />
+      )}
+      <div className="h-screen flex">
+        {" "}
+        <NavBar
+          username={username}
+          onPanelChange={(panelId) => {
+            setActivePanel(panelId);
+          }}
+        />
+        <Sidebar
+          username={username}
+          activePanel={activePanel}
+          myDMs={myDMs}
+          myGroups={myRoomGroups}
+          onlineUsers={onlineUsers}
+          joinableGroups={joinableGroups}
+          onGroupClick={handleSelectGroup}
+          onJoinGroup={handleJoinGroup}
+          onCreateGroup={handleCreateGroup}
+          onUserClick={handleUserClick}
+          onLeaveGroup={handleLeaveGroup}
+        />
+        <ChatWindow
+          username={username}
+          roomName={currentRoomName}
+          roomInfo={currentRoomInfo}
+          messages={messages.map((m) => {
+            const parts = m.timestamp.split(" ");
+            let parsableDate = new Date();
+            if (parts.length >= 3) {
+              const isoStr = `${parts[0]}T${parts[1]}${parts[2]}`;
+              parsableDate = new Date(isoStr);
+            } else {
+              parsableDate = new Date(m.timestamp);
+            }
 
-      <Sidebar
-        username={username}
-        activePanel={activePanel}
-        myDMs={myDMs}
-        myGroups={myRoomGroups}
-        onlineUsers={onlineUsers}
-        joinableGroups={joinableGroups}
-        onGroupClick={handleSelectGroup}
-        onJoinGroup={handleJoinGroup}
-        onCreateGroup={handleCreateGroup}
-        onUserClick={handleUserClick}
-        onLeaveGroup={handleLeaveGroup}
-      />
-
-      <ChatWindow
-        username={username}
-        roomName={currentRoomName}
-        roomInfo={currentRoomInfo}
-        messages={messages.map((m) => {
-          const parts = m.timestamp.split(" ");
-          let parsableDate = new Date();
-          if (parts.length >= 3) {
-            const isoStr = `${parts[0]}T${parts[1]}${parts[2]}`;
-            parsableDate = new Date(isoStr);
-          } else {
-            parsableDate = new Date(m.timestamp);
-          }
-
-          return {
-            message_id: m.message_id,
-            sender: m.username,
-            text: m.message,
-            time: parsableDate.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-          };
-        })}
-        onSendMessage={handleSendMessage}
-        onUpdateMessage={handleUpdateMessage}
-      />
-    </div>
+            return {
+              message_id: m.message_id,
+              sender: m.username,
+              text: m.message,
+              time: parsableDate.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              }),
+            };
+          })}
+          onSendMessage={handleSendMessage}
+          onUpdateMessage={handleUpdateMessage}
+        />
+      </div>
+    </>
   );
 }
