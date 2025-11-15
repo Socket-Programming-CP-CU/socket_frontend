@@ -189,14 +189,14 @@ export default function Home() {
           // ✅ เพิ่มเงื่อนไข g.have_message === 1 ตรงนี้
           setMyDMs(
             allMyGroups.filter(
-              (g: Group) => g.is_direct && g.have_message === 1
+              (g: Group) => g.is_direct === 1 && g.have_message === 1
             )
           );
-          setMyRoomGroups(allMyGroups.filter((g: Group) => !g.is_direct));
+          setMyRoomGroups(allMyGroups.filter((g: Group) => g.is_direct === 0));
 
           setJoinableGroups(
             data.groups.filter(
-              (g: Group) => g.is_member === 0 && !g.is_direct // แก้ไข is_member เป็น === 0
+              (g: Group) => g.is_member === 0 && g.is_direct === 0 // แก้ไข is_member เป็น === 0
             )
           );
           break;
@@ -271,7 +271,7 @@ export default function Home() {
   const handleJoinGroup = (group: Group) => {
     let password = "";
     // 1. ตรวจสอบว่าเป็นกลุ่ม Private หรือไม่
-    if (group.is_private) {
+    if (group.is_private === 1) {
       // 2. ถ้าใช่ ให้แสดง prompt ถามรหัสผ่าน
       password = prompt(`Enter password for "${group.group_name}":`) || "";
 
@@ -324,7 +324,7 @@ export default function Home() {
     // R7: หาแชท DM ที่มีอยู่กับ user คนนี้
     const dmGroup = myDMs.find(
       // <--- ✅ จุดที่ 1 (แก้เป็น myDMs)
-      (g) => g.is_direct && g.group_name === user.username
+      (g) => g.is_direct === 1 && g.group_name === user.username
     );
 
     if (dmGroup) {

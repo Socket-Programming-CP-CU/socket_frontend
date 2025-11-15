@@ -56,9 +56,10 @@ type User = {
 type Group = {
   group_id: number;
   group_name: string;
-  is_private: boolean;
-  is_direct: boolean;
-  is_member: boolean; // สมมติว่า Backend ส่งมา
+  is_private: number;
+  is_direct: number;
+  is_member: number; // สมมติว่า Backend ส่งมา
+  have_message: number;
 };
 // --- (จบส่วน utils) ---
 
@@ -257,7 +258,7 @@ export default function Sidebar({
                     <span className="font-medium">{group.group_name}</span>
 
                     {/* ▼▼▼ เพิ่มส่วนนี้เข้าไป ▼▼▼ */}
-                    {group.is_private && (
+                    {group.is_private === 1 && (
                       <FontAwesomeIcon
                         icon={faLock}
                         className="text-xs text-gray-400 ml-2"
