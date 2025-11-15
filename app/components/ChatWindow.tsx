@@ -1,7 +1,11 @@
+// app/components/ChatWindow.tsx
 "use client";
 import { useState, useRef, useEffect } from "react";
 
+// ▼▼▼ [แก้ไข] เพิ่ม id เข้าไปใน Type ▼▼▼
+// ▼▼▼ [แก้ไข] เพิ่ม id เข้าไปใน Type ▼▼▼
 type Message = {
+  id: number; // <--- เพิ่ม ID ของข้อความ
   sender: string;
   text: string;
   time: string;
@@ -13,6 +17,7 @@ type ChatWindowProps = {
   roomInfo: string | null;
   messages: Message[];
   onSendMessage: (messageText: string) => void;
+  onUpdateMessage: (messageId: number, newMessage: string) => void; // <-- [เพิ่มใหม่]
 };
 
 export default function ChatWindow({
@@ -21,6 +26,7 @@ export default function ChatWindow({
   roomInfo,
   messages,
   onSendMessage,
+  onUpdateMessage, // <-- [เพิ่มใหม่]
 }: ChatWindowProps) {
   // State ภายในสำหรับกล่องพิมพ์
   const [messageInput, setMessageInput] = useState("");
@@ -50,6 +56,18 @@ export default function ChatWindow({
       handleSend();
     }
   };
+
+  // ▼▼▼ [เพิ่มใหม่] Handler สำหรับการกด Edit ▼▼▼
+  const handleEditMessage = (msg: Message) => {
+    // ใช้วิธีง่ายๆ ด้วย prompt()
+    const newText = prompt("Edit your message:", msg.text);
+
+    // ถ้า user ไม่ได้กดยกเลิก และข้อความไม่ว่างเปล่า
+    if (newText && newText.trim() !== "") {
+      onUpdateMessage(msg.id, newText.trim());
+    }
+  };
+  // ▲▲▲ [จบส่วนเพิ่มใหม่] ▲▲▲
 
   // ตรวจสอบว่ามีห้องแชท active อยู่หรือไม่
   const isChatActive = roomName !== null;
@@ -89,14 +107,21 @@ export default function ChatWindow({
             // นี่คือตรรกะจากฟังก์ชัน addMessageToWindow()
             return (
               <div
-                key={index}
+                key={index} // ใช้ index เป็น key ไม่ดีเท่าไหร่ แต่ msg.id อาจซ้ำหากมีการโหลดใหม่
                 className={`flex ${isMe ? "justify-end" : "justify-start"}`}
               >
+                {/* ▼▼▼ [แก้ไข] เพิ่ม onClick และ cursor-pointer ถ้าเป็นข้อความของเรา ▼▼▼ */}
                 <div
+                  onClick={() => (isMe ? handleEditMessage(msg) : undefined)}
                   className={`p-3 rounded-xl max-w-lg shadow ${
-                    isMe ? "bg-blue-600 text-white" : "bg-gray-800 text-white"
-                  }`}
+                    isMe
+                      ? "bg-blue-600 text-white cursor-pointer hover:bg-blue-500"
+                      : "bg-gray-800 text-white"
+                  } transition-colors`}
+                  title={isMe ? "Click to edit" : ""}
                 >
+                  {/* ▲▲▲ [จบส่วนแก้ไข] ▲▲▲ */}
+
                   {/* แสดงชื่อผู้ส่ง ถ้าไม่ใช่เรา */}
                   {!isMe && (
                     <p className="font-bold text-sm text-blue-300">

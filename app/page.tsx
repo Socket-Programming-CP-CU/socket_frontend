@@ -1,4 +1,3 @@
-// app/page.tsx
 "use client";
 import { useState, useEffect, useRef } from "react";
 import LoginScreen from "./components/LoginScreen";
@@ -19,7 +18,7 @@ type Group = {
   is_member: boolean; // *สมมติว่า backend เพิ่ม flag นี้มาให้*
 };
 type Message = {
-  chat_id: number;
+  message_id: number; // <--- แก้ไขจาก chat_id
   message: string;
   username: string;
   timestamp: string;
@@ -144,18 +143,21 @@ export default function Home() {
       // --- ตัวจ่ายงาน (Dispatcher) ---
 
       // [FIX 1] ตรวจสอบ Response status ให้ตรงกับ Backend (ok: bool)
+      // [FIX 1] ตรวจสอบ Response status ให้ตรงกับ Backend (ok: bool)
       if (data.ok === false) {
         // <--- แก้ไขตรงนี้
         console.error("API Error:", data.error);
         if (data.command === "LOGIN" || data.command === "REGISTER") {
           setLoginError(data.error || "Login/Register failed.");
           // ไม่ต้อง close() เพราะอาจจะแค่พิมพ์รหัสผิด
+        } else if (data.command === "JOIN_GROUP") {
+          // <-- เพิ่มส่วนนี้
+          // ถ้า Join ไม่ผ่าน ให้แสดง Error
+          alert(`Failed to join group: ${data.error}`);
         }
         // TODO: แสดง Error อื่นๆ แบบ Toast
         return; // หยุดทำงานถ้า ok: false
       }
-
-      // ตรวจสอบ Command ที่ Server ส่งมา
       switch (data.command) {
         // --- ตอบกลับ Login/Register (กรณีสำเร็จ) ---
         case "LOGIN":
@@ -168,7 +170,7 @@ export default function Home() {
           break;
         case "REGISTER":
           if (data.ok === true) {
-            // ทำเหมือน LOGIN ทุกอย่าง
+            // ทำเหมือน LOGIN
             setUsername(initialMessage.body.username);
             setIsLoggedIn(true);
             setLoginError("");
@@ -258,17 +260,30 @@ export default function Home() {
   };
 
   const handleJoinGroup = (group: Group) => {
+    let password = "";
+    // 1. ตรวจสอบว่าเป็นกลุ่ม Private หรือไม่
+    if (group.is_private) {
+      // 2. ถ้าใช่ ให้แสดง prompt ถามรหัสผ่าน
+      password = prompt(`Enter password for "${group.group_name}":`) || "";
+
+      // 3. ถ้าผู้ใช้กดยกเลิก (Cancel)
+      if (password === null) {
+        return; // ไม่ทำอะไรต่อ
+      }
+    }
+
+    // 4. แสดงสถานะว่ากำลัง Join
     setCurrentRoomId(group.group_id);
     setCurrentRoomName(group.group_name);
     setCurrentRoomInfo("Joining...");
     setMessages([]);
 
+    // 5. ส่ง Command พร้อมรหัสผ่าน (ถ้ามี)
     sendCommand({
       command: "JOIN_GROUP",
       body: {
-        // <-- เพิ่ม body wrapper
         group_id: group.group_id,
-        password: "", // TODO: ...
+        password: password, // <-- ส่งรหัสผ่านที่ได้มา
       },
     });
 
@@ -329,6 +344,41 @@ export default function Home() {
       />
     );
   }
+  const handleLeaveGroup = (groupId: number) => {
+    if (!confirm("Are you sure you want to leave this group?")) {
+      return;
+    }
+
+    sendCommand({
+      command: "LEAVE_GROUP",
+      body: {
+        group_id: groupId,
+      },
+    });
+
+    // ถ้ากลุ่มที่กำลังจะออก คือกลุ่มที่กำลังเปิดอยู่ ให้เคลียร์หน้าจอแชท
+    if (currentRoomId === groupId) {
+      setCurrentRoomId(null);
+      setCurrentRoomName(null);
+      setCurrentRoomInfo(null);
+      setMessages([]);
+    }
+  };
+  // ▲▲▲ [จบส่วนเพิ่มใหม่] ▲▲▲
+
+  // ▼▼▼ [เพิ่มใหม่] Handler สำหรับ UPDATE_MESSAGE ▼▼▼
+  const handleUpdateMessage = (messageId: number, newMessage: string) => {
+    if (newMessage.trim() === "") return;
+
+    sendCommand({
+      command: "UPDATE_MESSAGE",
+      body: {
+        message_id: messageId, // <--- ใช้ message_id
+        message: newMessage,
+      },
+    });
+    // Server จะส่ง PUBLISH_CHATS กลับมาเอง ทำให้ข้อความอัปเดตอัตโนมัติ
+  };
 
   // 2. ถ้าล็อกอินแล้ว
   return (
@@ -356,6 +406,7 @@ export default function Home() {
         onJoinGroup={handleJoinGroup} // (R10)
         onCreateGroup={handleCreateGroup} // (R8)
         onUserClick={handleUserClick} // <-- แก้ไขตรงนี้
+        onLeaveGroup={handleLeaveGroup}
       />
 
       <ChatWindow
@@ -366,7 +417,7 @@ export default function Home() {
         messages={messages.map((m) => {
           // [FIX] แปลง Go time string ให้อ่านได้
           // from: "2025-11-14 17:25:01.123 +0700 +07"
-          // to:   "2025-11-14T17:25:01.123+0700"
+          // to:   "2025-11-14T17:25:01.123+0700"
           const parts = m.timestamp.split(" ");
           let parsableDate = new Date(); // Default to now if split fails
           if (parts.length >= 3) {
@@ -376,8 +427,10 @@ export default function Home() {
             // Fallback for unexpected format
             parsableDate = new Date(m.timestamp);
           }
+
           return {
             // แปลงข้อมูลให้ตรงกับ Component
+            id: m.message_id,
             sender: m.username,
             text: m.message,
             time: parsableDate.toLocaleTimeString("en-US", {
@@ -388,6 +441,7 @@ export default function Home() {
           };
         })}
         onSendMessage={handleSendMessage} // (R6)
+        onUpdateMessage={handleUpdateMessage}
       />
     </div>
   );

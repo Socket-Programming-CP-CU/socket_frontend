@@ -1,5 +1,7 @@
 // app/components/Sidebar.tsx
 "use client";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faLock } from "@fortawesome/free-solid-svg-icons";
 import { useState } from "react";
 
 // --- (ส่วนนี้ควรย้ายไปไฟล์ utils.ts หรือ types.ts) ---
@@ -76,6 +78,7 @@ type SidebarProps = {
     password: string
   ) => void;
   onUserClick: (user: User) => void; // <-- แก้ไขจุดที่ 1
+  onLeaveGroup: (groupId: number) => void;
 };
 
 export default function Sidebar({
@@ -89,6 +92,7 @@ export default function Sidebar({
   onJoinGroup,
   onCreateGroup,
   onUserClick, // <-- แก้ไขจุดที่ 2
+  onLeaveGroup,
 }: SidebarProps) {
   // State ภายในสำหรับช่อง Input "Create Group"
   const [newGroupName, setNewGroupName] = useState("");
@@ -134,13 +138,30 @@ export default function Sidebar({
                 <div
                   key={group.group_id}
                   onClick={() => onGroupClick(group)}
-                  className="flex items-center p-2 rounded-lg hover:bg-gray-700 cursor-pointer space-x-3"
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-700 cursor-pointer group" // group นี้สำหรับ hover
                 >
-                  {/* ถ้าเป็น Direct Message (R7) ให้ใช้ Avatar, ถ้าไม่ ให้ใช้ Group Avatar */}
-                  {group.is_direct
-                    ? getAvatar(group.group_name)
-                    : getGroupAvatar(group.group_name)}
-                  <span className="font-medium">{group.group_name}</span>
+                  {/* ส่วนของ Avatar และ ชื่อ */}
+                  <div className="flex items-center space-x-3">
+                    {group.is_direct
+                      ? getAvatar(group.group_name)
+                      : getGroupAvatar(group.group_name)}
+                    <span className="font-medium">{group.group_name}</span>
+                  </div>
+
+                  {/* ปุ่ม Leave (จะแสดงเมื่อ hover) */}
+                  {/* เราจะไม่แสดงปุ่ม Leave ถ้าเป็น Direct Message (is_direct) */}
+                  {!group.is_direct && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation(); // ป้องกันไม่ให้ onGroupClick ทำงาน
+                        onLeaveGroup(group.group_id);
+                      }}
+                      className="text-xs text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-300 transition-opacity"
+                      title="Leave Group"
+                    >
+                      Leave
+                    </button>
+                  )}
                 </div>
               ))
             )}
@@ -207,6 +228,17 @@ export default function Sidebar({
                   {getGroupAvatar(group.group_name)}
                   <div>
                     <span className="font-medium">{group.group_name}</span>
+
+                    {/* ▼▼▼ เพิ่มส่วนนี้เข้าไป ▼▼▼ */}
+                    {group.is_private && (
+                      <FontAwesomeIcon
+                        icon={faLock}
+                        className="text-xs text-gray-400 ml-2"
+                        title="Private Group"
+                      />
+                    )}
+                    {/* ▲▲▲ สิ้นสุดส่วนที่เพิ่ม ▲▲▲ */}
+
                     {/* <span className="text-sm text-gray-400 block">
                       {group.members} members
                     </span> */}
