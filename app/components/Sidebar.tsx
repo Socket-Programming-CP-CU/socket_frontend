@@ -75,7 +75,7 @@ type SidebarProps = {
     isPrivate: boolean,
     password: string
   ) => void;
-  // onUserClick: (user: User) => void; // API Spec ไม่มี R7
+  onUserClick: (user: User) => void; // <-- แก้ไขจุดที่ 1
 };
 
 export default function Sidebar({
@@ -88,8 +88,8 @@ export default function Sidebar({
   onGroupClick,
   onJoinGroup,
   onCreateGroup,
-}: // onUserClick,
-SidebarProps) {
+  onUserClick, // <-- แก้ไขจุดที่ 2
+}: SidebarProps) {
   // State ภายในสำหรับช่อง Input "Create Group"
   const [newGroupName, setNewGroupName] = useState("");
   const [isPrivate, setIsPrivate] = useState(false);
@@ -167,8 +167,8 @@ SidebarProps) {
             {onlineUsers.map((user) => (
               <div
                 key={user.username}
-                // onClick={() => onUserClick(user)} // API Spec ไม่มี R7
-                className="flex items-center p-2 rounded-lg space-x-3"
+                onClick={() => onUserClick(user)} // <-- แก้ไขจุดที่ 3 (เปิด)
+                className="flex items-center p-2 rounded-lg space-x-3 hover:bg-gray-700 cursor-pointer" // <-- แก้ไขจุดที่ 3 (เพิ่ม style)
               >
                 {getAvatar(user.username)}
                 <span className="font-medium">{user.username}</span>

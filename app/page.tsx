@@ -84,10 +84,13 @@ export default function Home() {
   // -----------  ▼▼▼ นี่คือจุดที่แก้ไข ▼▼▼ -----------
   const connectAndSend = (initialMessage: {
     command: string;
-    username: string;
-    password?: string;
+    body: {
+      // <-- เพิ่ม "body"
+      username: string;
+      password?: string;
+    };
   }) => {
-    const socketUrl = "ws://localhost:65432";
+    const socketUrl = "ws://43.209.69.50/ws";
 
     try {
       if (
@@ -98,7 +101,7 @@ export default function Home() {
       }
       socketRef.current = new WebSocket(socketUrl);
     } catch (error) {
-      setLoginError("Failed to create WebSocket.");
+      setLoginError("Failed to create Web Socket.");
       return;
     }
 
@@ -126,6 +129,7 @@ export default function Home() {
       setLoginError("Connection error.");
     };
 
+    // --- นี่คือหัวใจหลัก: ตัวรับข้อความจาก Server ---
     socket.onmessage = (event) => {
       let data;
       try {
@@ -135,48 +139,60 @@ export default function Home() {
         return;
       }
 
-      console.log("Received:", data);
+      console.log("Received:", data); // Log ทุกอย่างที่ Server ส่งมา
 
-      if (data.status && data.status !== 200) {
+      // --- ตัวจ่ายงาน (Dispatcher) ---
+
+      // [FIX 1] ตรวจสอบ Response status ให้ตรงกับ Backend (ok: bool)
+      if (data.ok === false) {
+        // <--- แก้ไขตรงนี้
         console.error("API Error:", data.error);
         if (data.command === "LOGIN" || data.command === "REGISTER") {
           setLoginError(data.error || "Login/Register failed.");
-          socket.close();
+          // ไม่ต้อง close() เพราะอาจจะแค่พิมพ์รหัสผิด
         }
-        return;
+        // TODO: แสดง Error อื่นๆ แบบ Toast
+        return; // หยุดทำงานถ้า ok: false
       }
+
+      // ตรวจสอบ Command ที่ Server ส่งมา
       switch (data.command) {
+        // --- ตอบกลับ Login/Register (กรณีสำเร็จ) ---
         case "LOGIN":
-          if (data.status === 200) {
-            setUsername(initialMessage.username);
+          if (data.ok === true) {
+            setUsername(initialMessage.body.username); // <-- แก้ไขตรงนี้
             setIsLoggedIn(true);
             setLoginError("");
             startHealthCheck();
           }
           break;
         case "REGISTER":
-          if (data.status === 200) {
-            setLoginError("Register success! Please login.");
-            socket.close();
+          if (data.ok === true) {
+            // ทำเหมือน LOGIN ทุกอย่าง
+            setUsername(initialMessage.body.username);
+            setIsLoggedIn(true);
+            setLoginError("");
+            startHealthCheck();
           }
           break;
+        // --- Server Pushes (ตาม API Spec) ---
         case "PUBLISH_USERS": // (R4)
-          setOnlineUsers(data.users); // แสดงทุกคนรวมถึงตัวเอง
+          setOnlineUsers(data.users); // (แก้ตามที่คุยกันรอบที่แล้ว)
           break;
 
-        case "PUBLISH_GROUPS": // (R9)
-          // *ต้องให้ Backend เพิ่ม is_member: boolean ใน groups array*
-          // ถ้า Backend ไม่มี is_member ให้แก้ Logic ตรงนี้
+        // [FIX 4] แก้ไขชื่อ Command ให้ตรงกับ publish.go
+        case "PUBLISH_GROUPS":
           setMyGroups(data.groups.filter((g: Group) => g.is_member));
           setJoinableGroups(
             data.groups.filter(
-              (g: Group) => !g.is_private && !g.is_member && !g.is_direct
+              (g: Group) => !g.is_member && !g.is_direct // (แก้ตามที่คุยกันรอบที่แล้ว)
             )
           );
           break;
 
-        case "PUBLISH_CURRENT_CHAT": // (R6)
-          setMessages(data.chats);
+        // [FIX 5] แก้ไขชื่อ Command และ Field ให้ตรงกับ publish.go
+        case "PUBLISH_CHATS":
+          setMessages(data.messages); // Backend ส่ง "messages" ไม่ใช่ "chats"
           // อัปเดตข้อมูล members (ถ้ามี)
           if (data.members) {
             setCurrentRoomInfo(
@@ -187,6 +203,7 @@ export default function Home() {
           }
           break;
 
+        // --- ตอบกลับ Error (อีกรูปแบบ) ---
         case "ERROR": // สมมติว่ามี command นี้
           setLoginError(data.error);
           if (!isLoggedIn) socket.close(); // ปิดถ้า login ไม่ผ่าน
@@ -198,23 +215,30 @@ export default function Home() {
   const handleLogin = (name: string, pass: string) => {
     connectAndSend({
       command: "LOGIN",
-      username: name,
-      password: pass,
+      body: {
+        username: name,
+        password: pass,
+      },
     });
   };
 
   const handleRegister = (name: string, pass: string) => {
     connectAndSend({
       command: "REGISTER",
-      username: name,
-      password: pass,
+      body: {
+        username: name,
+        password: pass,
+      },
     });
   };
 
   const handleSendMessage = (messageText: string) => {
     sendCommand({
       command: "CREATE_MESSAGE",
-      message: messageText,
+      body: {
+        // <-- เพิ่ม body wrapper
+        message: messageText,
+      },
     });
   };
 
@@ -226,13 +250,14 @@ export default function Home() {
 
     sendCommand({
       command: "SELECT_GROUP",
-      group_id: group.group_id,
+      body: {
+        // <-- เพิ่ม body wrapper
+        group_id: group.group_id,
+      },
     });
   };
 
   const handleJoinGroup = (group: Group) => {
-    // R10: API ของคุณไม่มี "Join"
-    // ผมจึงสมมติว่าการ "Select" กลุ่มที่เรายังไม่อยู่ = "Join"
     setCurrentRoomId(group.group_id);
     setCurrentRoomName(group.group_name);
     setCurrentRoomInfo("Joining...");
@@ -240,8 +265,11 @@ export default function Home() {
 
     sendCommand({
       command: "JOIN_GROUP",
-      group_id: group.group_id,
-      password: "", // TODO: ใส่รหัสผ่านถ้ากลุ่มเป็น private
+      body: {
+        // <-- เพิ่ม body wrapper
+        group_id: group.group_id,
+        password: "", // TODO: ...
+      },
     });
 
     // (หลังจาก Join สำเร็จ, Backend ควรจะส่ง PUBLISH_GROUPS และ PUBLISH_CHATS มาอัปเดตเอง)
@@ -256,13 +284,39 @@ export default function Home() {
     // R8: CREATE_GROUP
     sendCommand({
       command: "CREATE_GROUP",
-      group_name: groupName,
-      is_private: isPrivate,
-      password: password || "", // ส่ง "" ถ้า password ว่าง
+      body: {
+        // <-- เพิ่ม body wrapper
+        group_name: groupName,
+        is_private: isPrivate,
+        password: password || "",
+      },
     });
     // Server ควรจะส่ง PUBLISH_ALL_GROUPS มาอัปเดต list
     setActivePanel("panel-my-chats"); // สลับไปหน้า "My Groups"
   };
+
+  // ▼▼▼ เพิ่มฟังก์ชันนี้เข้าไปใหม่ ▼▼▼
+  const handleUserClick = (user: User) => {
+    // R7: หาแชท DM ที่มีอยู่กับ user คนนี้
+    const dmGroup = myGroups.find(
+      (g) => g.is_direct && g.group_name === user.username
+    );
+
+    if (dmGroup) {
+      // ถ้าเจอ ก็เปิดแชทนั้น
+      handleSelectGroup(dmGroup);
+    } else {
+      // ถ้าไม่เจอ (เพราะ Backend ยังไม่ได้แก้ชื่อ "Direct Message")
+      console.error(`Could not find existing DM group for: ${user.username}.`);
+      alert(
+        `Error: Cannot find DM chat for ${user.username}. (This requires a Backend fix to rename DM groups)`
+      );
+    }
+
+    // สลับไปหน้าแชท
+    setActivePanel("panel-my-chats");
+  };
+  // ▲▲▲ สิ้นสุดฟังก์ชันที่เพิ่มใหม่ ▲▲▲
 
   // --- Render Logic ---
   if (!isLoggedIn) {
@@ -301,22 +355,38 @@ export default function Home() {
         onGroupClick={handleSelectGroup} // (R5)
         onJoinGroup={handleJoinGroup} // (R10)
         onCreateGroup={handleCreateGroup} // (R8)
-        // onUserClick={() => {}} // API Spec ไม่มี R7
+        onUserClick={handleUserClick} // <-- แก้ไขตรงนี้
       />
 
       <ChatWindow
         username={username}
         roomName={currentRoomName}
         roomInfo={currentRoomInfo}
-        messages={messages.map((m) => ({
-          // แปลงข้อมูลให้ตรงกับ Component
-          sender: m.username,
-          text: m.message,
-          time: new Date(m.timestamp).toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-          }),
-        }))}
+        // โค้ดที่แก้ไขแล้ว
+        messages={messages.map((m) => {
+          // [FIX] แปลง Go time string ให้อ่านได้
+          // from: "2025-11-14 17:25:01.123 +0700 +07"
+          // to:   "2025-11-14T17:25:01.123+0700"
+          const parts = m.timestamp.split(" ");
+          let parsableDate = new Date(); // Default to now if split fails
+          if (parts.length >= 3) {
+            const isoStr = `${parts[0]}T${parts[1]}${parts[2]}`;
+            parsableDate = new Date(isoStr);
+          } else {
+            // Fallback for unexpected format
+            parsableDate = new Date(m.timestamp);
+          }
+          return {
+            // แปลงข้อมูลให้ตรงกับ Component
+            sender: m.username,
+            text: m.message,
+            time: parsableDate.toLocaleTimeString("en-US", {
+              // <-- Use the new date
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+          };
+        })}
         onSendMessage={handleSendMessage} // (R6)
       />
     </div>
