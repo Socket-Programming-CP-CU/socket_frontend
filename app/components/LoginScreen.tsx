@@ -37,7 +37,7 @@ export default function LoginScreen({
       className="min-h-screen flex items-center justify-center transition-opacity duration-500"
     >
       <div className="bg-gray-800 p-8 rounded-2xl shadow-xl w-full max-w-md text-center">
-        <h1 className="text-3xl font-bold mb-6">Socket Chat (API Spec)</h1>
+        <h1 className="text-3xl font-bold mb-6">Socket Chat</h1>
         <p className="text-gray-400 mb-6">Login or Register</p>
         <input
           type="text"
