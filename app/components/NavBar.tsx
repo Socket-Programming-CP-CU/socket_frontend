@@ -28,7 +28,7 @@ export default function NavBar({ username, onPanelChange }: NavBarProps) {
         className={`nav-btn ${
           active === "panel-private-chats" ? "active" : ""
         }`}
-        title="My Chats (R7)"
+        title="My Chats "
         onClick={() => handleClick("panel-private-chats")}
       >
         <FontAwesomeIcon icon={faComments} />
@@ -36,7 +36,7 @@ export default function NavBar({ username, onPanelChange }: NavBarProps) {
 
       <button
         className={`nav-btn ${active === "panel-groups" ? "active" : ""}`}
-        title="My Chats (R11)"
+        title="My Chats"
         onClick={() => handleClick("panel-groups")}
       >
         <FontAwesomeIcon icon={faUsers} />
@@ -44,7 +44,7 @@ export default function NavBar({ username, onPanelChange }: NavBarProps) {
 
       <button
         className={`nav-btn ${active === "panel-online-users" ? "active" : ""}`}
-        title="Online Users (R4)"
+        title="Online Users"
         onClick={() => handleClick("panel-online-users")}
       >
         <FontAwesomeIcon icon={faListUl} />
@@ -54,7 +54,7 @@ export default function NavBar({ username, onPanelChange }: NavBarProps) {
         className={`nav-btn ${
           active === "panel-explore-groups" ? "active" : ""
         }`}
-        title="Explore Groups (R9, R10)"
+        title="Explore Groups"
         onClick={() => handleClick("panel-explore-groups")}
       >
         <FontAwesomeIcon icon={faCompass} />
@@ -62,7 +62,7 @@ export default function NavBar({ username, onPanelChange }: NavBarProps) {
 
       <button
         className={`nav-btn ${active === "panel-create-group" ? "active" : ""}`}
-        title="Create Group (R8)"
+        title="Create Group "
         onClick={() => handleClick("panel-create-group")}
       >
         <FontAwesomeIcon icon={faPlus} />

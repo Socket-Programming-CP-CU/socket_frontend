@@ -290,7 +290,7 @@ export default function Sidebar({
           </header>
 
           <div className="p-6 space-y-4">
-            <p className="text-gray-400">Create a new chat group (R8).</p>
+            <p className="text-gray-400">Create a new chat group.</p>
 
             <input
               type="text"
