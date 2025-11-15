@@ -1,9 +1,6 @@
-// app/components/ChatWindow.tsx
 "use client";
 import { useState, useRef, useEffect } from "react";
 
-// ▼▼▼ [แก้ไข] เพิ่ม id เข้าไปใน Type ▼▼▼
-// ▼▼▼ [แก้ไข] เพิ่ม id เข้าไปใน Type ▼▼▼
 type Message = {
   message_id: number;
   sender: string;
@@ -17,7 +14,7 @@ type ChatWindowProps = {
   roomInfo: string | null;
   messages: Message[];
   onSendMessage: (messageText: string) => void;
-  onUpdateMessage: (messageId: number, newMessage: string) => void; // <-- [เพิ่มใหม่]
+  onUpdateMessage: (messageId: number, newMessage: string) => void;
 };
 
 export default function ChatWindow({
@@ -26,16 +23,11 @@ export default function ChatWindow({
   roomInfo,
   messages,
   onSendMessage,
-  onUpdateMessage, // <-- [เพิ่มใหม่]
+  onUpdateMessage,
 }: ChatWindowProps) {
-  // State ภายในสำหรับกล่องพิมพ์
   const [messageInput, setMessageInput] = useState("");
-
-  // สร้าง Ref เพื่ออ้างอิงไปยัง chat window
   const chatWindowRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to bottom:
-  // ทำงานทุกครั้งที่ messages (ที่รับมาจาก prop) เปลี่ยนแปลง
   useEffect(() => {
     if (chatWindowRef.current) {
       chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
@@ -45,39 +37,33 @@ export default function ChatWindow({
   const handleSend = () => {
     const text = messageInput.trim();
     if (text === "") return;
-    onSendMessage(text); // เรียกฟังก์ชันแม่ (page.tsx)
-    setMessageInput(""); // เคลียร์ช่อง input
+    onSendMessage(text);
+    setMessageInput("");
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
-    // ส่งเมื่อกด Enter (ถ้าไม่กด Shift)
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  // ▼▼▼ [เพิ่มใหม่] Handler สำหรับการกด Edit ▼▼▼
   const handleEditMessage = (msg: Message) => {
     const newText = prompt("Edit your message:", msg.text);
     if (newText && newText.trim() !== "") {
-      onUpdateMessage(msg.message_id, newText.trim()); // <--- ต้องเป็น msg.message_id
+      onUpdateMessage(msg.message_id, newText.trim());
     }
   };
-  // ▲▲▲ [จบส่วนเพิ่มใหม่] ▲▲▲
 
-  // ตรวจสอบว่ามีห้องแชท active อยู่หรือไม่
   const isChatActive = roomName !== null;
 
   return (
     <main className="flex-1 flex flex-col bg-gray-700">
-      {/* Chat Header */}
       <header
         id="chat-header"
         className="bg-gray-800 p-4 border-b border-gray-600 shadow-md"
       >
         <h2 className="font-bold text-xl" id="chat-room-name">
-          {/* แสดงผลตามเงื่อนไขว่าเลือกห้องหรือยัง */}
           {isChatActive ? roomName : "Welcome!"}
         </h2>
         <p className="text-sm text-gray-400" id="chat-room-info">
@@ -85,29 +71,24 @@ export default function ChatWindow({
         </p>
       </header>
 
-      {/* Chat Window (R6) */}
       <div
         id="chat-window"
         ref={chatWindowRef}
         className="flex-1 p-4 space-y-4 overflow-y-auto"
       >
         {!isChatActive ? (
-          // ถ้ายังไม่เลือกห้อง
           <div className="flex justify-center text-gray-400">
             <p>Select a user or group from the sidebar to start chatting.</p>
           </div>
         ) : (
-          // ถ้าเลือกห้องแล้ว: Render ข้อความ
           messages.map((msg, index) => {
-            const isMe = msg.sender === username; // เช็กว่าข้อความนี้เป็นของเราหรือไม่
+            const isMe = msg.sender === username;
 
-            // นี่คือตรรกะจากฟังก์ชัน addMessageToWindow()
             return (
               <div
-                key={index} // ใช้ index เป็น key ไม่ดีเท่าไหร่ แต่ msg.id อาจซ้ำหากมีการโหลดใหม่
+                key={index}
                 className={`flex ${isMe ? "justify-end" : "justify-start"}`}
               >
-                {/* ▼▼▼ [แก้ไข] เพิ่ม onClick และ cursor-pointer ถ้าเป็นข้อความของเรา ▼▼▼ */}
                 <div
                   onClick={() => (isMe ? handleEditMessage(msg) : undefined)}
                   className={`p-3 rounded-xl max-w-lg shadow ${
@@ -117,9 +98,6 @@ export default function ChatWindow({
                   } transition-colors`}
                   title={isMe ? "Click to edit" : ""}
                 >
-                  {/* ▲▲▲ [จบส่วนแก้ไข] ▲▲▲ */}
-
-                  {/* แสดงชื่อผู้ส่ง ถ้าไม่ใช่เรา */}
                   {!isMe && (
                     <p className="font-bold text-sm text-blue-300">
                       {msg.sender}
@@ -138,8 +116,6 @@ export default function ChatWindow({
         )}
       </div>
 
-      {/* Chat Input (R6) */}
-      {/* แสดงกล่องพิมพ์ต่อเมื่อเลือกห้องแชทแล้วเท่านั้น */}
       {isChatActive && (
         <div id="chat-input-container" className="p-4 bg-gray-800 mt-auto">
           <div className="flex space-x-3">

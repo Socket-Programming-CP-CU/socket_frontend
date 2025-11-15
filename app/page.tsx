@@ -5,21 +5,20 @@ import NavBar from "./components/NavBar";
 import Sidebar from "./components/Sidebar";
 import ChatWindow from "./components/ChatWindow";
 
-// --- Types (ตรงตาม API Spec) ---
 type User = {
   username: string;
   is_online: boolean;
 };
 type Group = {
-  group_id: number; // API ใช้ int
+  group_id: number;
   group_name: string;
   is_private: number;
   is_direct: number;
-  is_member: number; // *สมมติว่า backend เพิ่ม flag นี้มาให้*
+  is_member: number;
   have_message: number;
 };
 type Message = {
-  message_id: number; // <--- แก้ไขจาก chat_id
+  message_id: number;
   message: string;
   username: string;
   timestamp: string;
@@ -28,39 +27,31 @@ type Member = {
   username: string;
   is_online: boolean;
 };
-// --- จบส่วน Types ---
 
 export default function Home() {
-  // --- State หลักของแอป ---
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const [loginError, setLoginError] = useState("");
   const [activePanel, setActivePanel] = useState("panel-private-chats");
 
-  // --- State สำหรับเก็บข้อมูล (จาก Server) ---
   const [myDMs, setMyDMs] = useState<Group[]>([]);
   const [myRoomGroups, setMyRoomGroups] = useState<Group[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
   const [joinableGroups, setJoinableGroups] = useState<Group[]>([]);
 
-  // --- State ของห้องแชทปัจจุบัน ---
   const [currentRoomId, setCurrentRoomId] = useState<number | null>(null);
   const [currentRoomName, setCurrentRoomName] = useState<string | null>(null);
   const [currentRoomInfo, setCurrentRoomInfo] = useState<string | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]); // ตรงตาม PUBLISH_CHATS
+  const [messages, setMessages] = useState<Message[]>([]);
 
-  // --- WebSocket State ---
   const socketRef = useRef<WebSocket | null>(null);
   const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [_, setForceRender] = useState(0); // ตัวแปรสำหรับ re-render
+  const [_, setForceRender] = useState(0);
 
-  // --- WebSocket Logic ---
-
-  // ฟังก์ชันกลางสำหรับส่ง JSON command
   const sendCommand = (payload: object) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
       socketRef.current.send(JSON.stringify(payload));
-      console.log("Sent:", payload); // Log สิ่งที่ส่ง
+      console.log("Sent:", payload);
     } else {
       console.error("Socket is not open or not connected.");
       setLoginError("Connection lost. Please refresh.");
@@ -71,7 +62,6 @@ export default function Home() {
     }
   };
 
-  // เริ่ม Health Check (ตาม API)
   const startHealthCheck = () => {
     if (healthCheckIntervalRef.current) {
       clearInterval(healthCheckIntervalRef.current);
@@ -81,12 +71,9 @@ export default function Home() {
     }, 5000);
   };
 
-  // ฟังก์ชันเชื่อมต่อ WebSocket
-  // -----------  ▼▼▼ นี่คือจุดที่แก้ไข ▼▼▼ -----------
   const connectAndSend = (initialMessage: {
     command: string;
     body: {
-      // <-- เพิ่ม "body"
       username: string;
       password?: string;
     };
@@ -111,7 +98,7 @@ export default function Home() {
     socket.onopen = () => {
       console.log("WebSocket connected!");
       setLoginError("Connecting...");
-      sendCommand(initialMessage); // ส่ง LOGIN หรือ REGISTER
+      sendCommand(initialMessage);
     };
 
     socket.onclose = () => {
@@ -130,7 +117,6 @@ export default function Home() {
       setLoginError("Connection error.");
     };
 
-    // --- นี่คือหัวใจหลัก: ตัวรับข้อความจาก Server ---
     socket.onmessage = (event) => {
       let data;
       try {
@@ -140,31 +126,21 @@ export default function Home() {
         return;
       }
 
-      console.log("Received:", data); // Log ทุกอย่างที่ Server ส่งมา
+      console.log("Received:", data);
 
-      // --- ตัวจ่ายงาน (Dispatcher) ---
-
-      // [FIX 1] ตรวจสอบ Response status ให้ตรงกับ Backend (ok: bool)
-      // [FIX 1] ตรวจสอบ Response status ให้ตรงกับ Backend (ok: bool)
       if (data.ok === false) {
-        // <--- แก้ไขตรงนี้
         console.error("API Error:", data.error);
         if (data.command === "LOGIN" || data.command === "REGISTER") {
           setLoginError(data.error || "Login/Register failed.");
-          // ไม่ต้อง close() เพราะอาจจะแค่พิมพ์รหัสผิด
         } else if (data.command === "JOIN_GROUP") {
-          // <-- เพิ่มส่วนนี้
-          // ถ้า Join ไม่ผ่าน ให้แสดง Error
           alert(`Failed to join group: ${data.error}`);
         }
-        // TODO: แสดง Error อื่นๆ แบบ Toast
-        return; // หยุดทำงานถ้า ok: false
+        return;
       }
       switch (data.command) {
-        // --- ตอบกลับ Login/Register (กรณีสำเร็จ) ---
         case "LOGIN":
           if (data.ok === true) {
-            setUsername(initialMessage.body.username); // <-- แก้ไขตรงนี้
+            setUsername(initialMessage.body.username);
             setIsLoggedIn(true);
             setLoginError("");
             startHealthCheck();
@@ -172,21 +148,17 @@ export default function Home() {
           break;
         case "REGISTER":
           if (data.ok === true) {
-            // ทำเหมือน LOGIN
             setUsername(initialMessage.body.username);
             setIsLoggedIn(true);
             setLoginError("");
             startHealthCheck();
           }
           break;
-        // --- Server Pushes (ตาม API Spec) ---
-        case "PUBLISH_GROUPS": // (R4)
-          // กรองกลุ่มที่เราเป็นสมาชิก โดยเช็ก 'is_member === 1'
+        case "PUBLISH_GROUPS":
           const allMyGroups = data.groups.filter(
             (g: Group) => g.is_member === 1
           );
 
-          // ✅ เพิ่มเงื่อนไข g.have_message === 1 ตรงนี้
           setMyDMs(
             allMyGroups.filter(
               (g: Group) => g.is_direct === 1 && g.have_message === 1
@@ -196,15 +168,13 @@ export default function Home() {
 
           setJoinableGroups(
             data.groups.filter(
-              (g: Group) => g.is_member === 0 && g.is_direct === 0 // แก้ไข is_member เป็น === 0
+              (g: Group) => g.is_member === 0 && g.is_direct === 0
             )
           );
           break;
 
-        // [FIX 5] แก้ไขชื่อ Command และ Field ให้ตรงกับ publish.go
         case "PUBLISH_CHATS":
-          setMessages(data.messages); // Backend ส่ง "messages" ไม่ใช่ "chats"
-          // อัปเดตข้อมูล members (ถ้ามี)
+          setMessages(data.messages);
           if (data.members) {
             setCurrentRoomInfo(
               `Members: ${data.members
@@ -213,11 +183,13 @@ export default function Home() {
             );
           }
           break;
+        case "PUBLISH_USERS":
+          setOnlineUsers(data.users);
+          break;
 
-        // --- ตอบกลับ Error (อีกรูปแบบ) ---
-        case "ERROR": // สมมติว่ามี command นี้
+        case "ERROR":
           setLoginError(data.error);
-          if (!isLoggedIn) socket.close(); // ปิดถ้า login ไม่ผ่าน
+          if (!isLoggedIn) socket.close();
           break;
       }
     };
@@ -247,7 +219,6 @@ export default function Home() {
     sendCommand({
       command: "CREATE_MESSAGE",
       body: {
-        // <-- เพิ่ม body wrapper
         message: messageText,
       },
     });
@@ -262,7 +233,6 @@ export default function Home() {
     sendCommand({
       command: "SELECT_GROUP",
       body: {
-        // <-- เพิ่ม body wrapper
         group_id: group.group_id,
       },
     });
@@ -270,34 +240,28 @@ export default function Home() {
 
   const handleJoinGroup = (group: Group) => {
     let password = "";
-    // 1. ตรวจสอบว่าเป็นกลุ่ม Private หรือไม่
     if (group.is_private === 1) {
-      // 2. ถ้าใช่ ให้แสดง prompt ถามรหัสผ่าน
       password = prompt(`Enter password for "${group.group_name}":`) || "";
 
-      // 3. ถ้าผู้ใช้กดยกเลิก (Cancel)
       if (password === null) {
-        return; // ไม่ทำอะไรต่อ
+        return;
       }
     }
 
-    // 4. แสดงสถานะว่ากำลัง Join
     setCurrentRoomId(group.group_id);
     setCurrentRoomName(group.group_name);
     setCurrentRoomInfo("Joining...");
     setMessages([]);
 
-    // 5. ส่ง Command พร้อมรหัสผ่าน (ถ้ามี)
     sendCommand({
       command: "JOIN_GROUP",
       body: {
         group_id: group.group_id,
-        password: password, // <-- ส่งรหัสผ่านที่ได้มา
+        password: password,
       },
     });
 
-    // (หลังจาก Join สำเร็จ, Backend ควรจะส่ง PUBLISH_GROUPS และ PUBLISH_CHATS มาอัปเดตเอง)
-    setActivePanel("panel-my-chats"); // สลับกลับมาหน้าแชท
+    setActivePanel("panel-my-chats");
   };
 
   const handleCreateGroup = (
@@ -305,46 +269,33 @@ export default function Home() {
     isPrivate: boolean,
     password: string
   ) => {
-    // R8: CREATE_GROUP
     sendCommand({
       command: "CREATE_GROUP",
       body: {
-        // <-- เพิ่ม body wrapper
         group_name: groupName,
         is_private: isPrivate,
         password: password || "",
       },
     });
-    // Server ควรจะส่ง PUBLISH_ALL_GROUPS มาอัปเดต list
-    setActivePanel("panel-my-chats"); // สลับไปหน้า "My Groups"
+    setActivePanel("panel-my-chats");
   };
 
-  // ▼▼▼ เพิ่มฟังก์ชันนี้เข้าไปใหม่ ▼▼▼
   const handleUserClick = (user: User) => {
-    // R7: หาแชท DM ที่มีอยู่กับ user คนนี้
     const dmGroup = myDMs.find(
-      // <--- ✅ จุดที่ 1 (แก้เป็น myDMs)
       (g) => g.is_direct === 1 && g.group_name === user.username
     );
 
     if (dmGroup) {
-      // ถ้าเจอ ก็เปิดแชทนั้น
       handleSelectGroup(dmGroup);
     } else {
-      // Backend ของคุณรองรับการตั้งชื่อ DM Group เป็นชื่อเพื่อนอยู่แล้ว
-      // ถ้าหาไม่เจอ แปลว่ายังไม่มี DM Group นี้ใน State
       console.error(`Could not find existing DM group for: ${user.username}.`);
       alert(`Error: Cannot find DM chat for ${user.username}.`);
     }
 
-    // สลับไปหน้าแชท
-    setActivePanel("panel-private-chats"); // <--- ✅ จุดที่ 2 (แก้เป็น panel-private-chats)
+    setActivePanel("panel-private-chats");
   };
-  // ▲▲▲ สิ้นสุดฟังก์ชันที่เพิ่มใหม่ ▲▲▲
 
-  // --- Render Logic ---
   if (!isLoggedIn) {
-    // 1. ถ้ายังไม่ล็อกอิน
     return (
       <LoginScreen
         onLogin={handleLogin}
@@ -365,7 +316,6 @@ export default function Home() {
       },
     });
 
-    // ถ้ากลุ่มที่กำลังจะออก คือกลุ่มที่กำลังเปิดอยู่ ให้เคลียร์หน้าจอแชท
     if (currentRoomId === groupId) {
       setCurrentRoomId(null);
       setCurrentRoomName(null);
@@ -373,34 +323,25 @@ export default function Home() {
       setMessages([]);
     }
   };
-  // ▲▲▲ [จบส่วนเพิ่มใหม่] ▲▲▲
 
-  // ▼▼▼ [เพิ่มใหม่] Handler สำหรับ UPDATE_MESSAGE ▼▼▼
   const handleUpdateMessage = (messageId: number, newMessage: string) => {
     if (newMessage.trim() === "") return;
 
     sendCommand({
       command: "UPDATE_MESSAGE",
       body: {
-        message_id: parseInt(String(messageId)), // <--- ใช้ message_id
+        message_id: parseInt(String(messageId)),
         message: newMessage,
       },
     });
-    // Server จะส่ง PUBLISH_CHATS กลับมาเอง ทำให้ข้อความอัปเดตอัตโนมัติ
   };
 
-  // 2. ถ้าล็อกอินแล้ว
   return (
     <div className="h-screen flex">
       <NavBar
         username={username}
         onPanelChange={(panelId) => {
           setActivePanel(panelId);
-          // ถ้ากดสลับ Panel ให้เคลียร์ห้องที่เลือกไว้
-          // setCurrentRoomId(null);
-          // setCurrentRoomName(null);
-          // setCurrentRoomInfo(null);
-          // setMessages([]);
         }}
       />
 
@@ -409,12 +350,12 @@ export default function Home() {
         activePanel={activePanel}
         myDMs={myDMs}
         myGroups={myRoomGroups}
-        onlineUsers={onlineUsers} // (R4)
-        joinableGroups={joinableGroups} // (R9)
-        onGroupClick={handleSelectGroup} // (R5)
-        onJoinGroup={handleJoinGroup} // (R10)
-        onCreateGroup={handleCreateGroup} // (R8)
-        onUserClick={handleUserClick} // <-- แก้ไขตรงนี้
+        onlineUsers={onlineUsers}
+        joinableGroups={joinableGroups}
+        onGroupClick={handleSelectGroup}
+        onJoinGroup={handleJoinGroup}
+        onCreateGroup={handleCreateGroup}
+        onUserClick={handleUserClick}
         onLeaveGroup={handleLeaveGroup}
       />
 
@@ -422,23 +363,17 @@ export default function Home() {
         username={username}
         roomName={currentRoomName}
         roomInfo={currentRoomInfo}
-        // โค้ดที่แก้ไขแล้ว
         messages={messages.map((m) => {
-          // [FIX] แปลง Go time string ให้อ่านได้
-          // from: "2025-11-14 17:25:01.123 +0700 +07"
-          // to:   "2025-11-14T17:25:01.123+0700"
           const parts = m.timestamp.split(" ");
-          let parsableDate = new Date(); // Default to now if split fails
+          let parsableDate = new Date();
           if (parts.length >= 3) {
             const isoStr = `${parts[0]}T${parts[1]}${parts[2]}`;
             parsableDate = new Date(isoStr);
           } else {
-            // Fallback for unexpected format
             parsableDate = new Date(m.timestamp);
           }
 
           return {
-            // ▼▼▼ "บังคับ" ให้ตรงนี้เป็น message_id ▼▼▼
             message_id: m.message_id,
             sender: m.username,
             text: m.message,

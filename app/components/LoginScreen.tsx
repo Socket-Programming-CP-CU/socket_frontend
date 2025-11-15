@@ -1,12 +1,10 @@
-// app/components/LoginScreen.tsx
 "use client";
 import { useState } from "react";
 
 type LoginScreenProps = {
-  // เราต้องส่งกลับไป 2 ค่า (user, pass) และบอกว่ากดปุ่มไหน
   onLogin: (username: string, password: string) => void;
   onRegister: (username: string, password: string) => void;
-  loginError: string; // รับ Error มาแสดงผล
+  loginError: string;
 };
 
 export default function LoginScreen({
@@ -27,7 +25,6 @@ export default function LoginScreen({
     onRegister(username, password);
   };
 
-  // จัดการการกด Enter
   const handleKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
       handleLogin();
@@ -76,7 +73,6 @@ export default function LoginScreen({
             Register
           </button>
         </div>
-        {/* แสดง Error ที่ได้รับมาจาก app/page.tsx */}
         <p id="login-error" className="text-red-400 mt-4 h-6">
           {loginError}
         </p>
