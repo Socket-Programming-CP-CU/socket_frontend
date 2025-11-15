@@ -31,7 +31,7 @@ export default function NavBar({ username, onPanelChange }: NavBarProps) {
         className={`nav-btn ${
           active === "panel-private-chats" ? "active" : ""
         }`}
-        title="Private Chats (R7)"
+        title="My Chats (R7)"
         onClick={() => handleClick("panel-private-chats")}
       >
         <FontAwesomeIcon icon={faComments} />
@@ -39,9 +39,9 @@ export default function NavBar({ username, onPanelChange }: NavBarProps) {
 
       {/* ปุ่ม 2: My Groups */}
       <button
-        className={`nav-btn ${active === "panel-groups" ? "active" : ""}`}
-        title="My Groups (R11)"
-        onClick={() => handleClick("panel-groups")}
+        className={`nav-btn ${active === "panel-groups" ? "active" : ""}`} // <--- แก้ไข
+        title="My Chats (R11)"
+        onClick={() => handleClick("panel-groups")} // <--- แก้ไข
       >
         <FontAwesomeIcon icon={faUsers} />
       </button>

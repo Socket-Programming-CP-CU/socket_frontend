@@ -13,9 +13,10 @@ type User = {
 type Group = {
   group_id: number; // API ใช้ int
   group_name: string;
-  is_private: boolean;
-  is_direct: boolean;
-  is_member: boolean; // *สมมติว่า backend เพิ่ม flag นี้มาให้*
+  is_private: number;
+  is_direct: number;
+  is_member: number; // *สมมติว่า backend เพิ่ม flag นี้มาให้*
+  have_message: number;
 };
 type Message = {
   message_id: number; // <--- แก้ไขจาก chat_id
@@ -34,10 +35,11 @@ export default function Home() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [username, setUsername] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [activePanel, setActivePanel] = useState("panel-my-chats"); // เปลี่ยนค่าเริ่มต้น
+  const [activePanel, setActivePanel] = useState("panel-private-chats");
 
   // --- State สำหรับเก็บข้อมูล (จาก Server) ---
-  const [myGroups, setMyGroups] = useState<Group[]>([]);
+  const [myDMs, setMyDMs] = useState<Group[]>([]);
+  const [myRoomGroups, setMyRoomGroups] = useState<Group[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<User[]>([]);
   const [joinableGroups, setJoinableGroups] = useState<Group[]>([]);
 
@@ -178,16 +180,23 @@ export default function Home() {
           }
           break;
         // --- Server Pushes (ตาม API Spec) ---
-        case "PUBLISH_USERS": // (R4)
-          setOnlineUsers(data.users); // (แก้ตามที่คุยกันรอบที่แล้ว)
-          break;
+        case "PUBLISH_GROUPS": // (R4)
+          // กรองกลุ่มที่เราเป็นสมาชิก โดยเช็ก 'is_member === 1'
+          const allMyGroups = data.groups.filter(
+            (g: Group) => g.is_member === 1
+          );
 
-        // [FIX 4] แก้ไขชื่อ Command ให้ตรงกับ publish.go
-        case "PUBLISH_GROUPS":
-          setMyGroups(data.groups.filter((g: Group) => g.is_member));
+          // ✅ เพิ่มเงื่อนไข g.have_message === 1 ตรงนี้
+          setMyDMs(
+            allMyGroups.filter(
+              (g: Group) => g.is_direct && g.have_message === 1
+            )
+          );
+          setMyRoomGroups(allMyGroups.filter((g: Group) => !g.is_direct));
+
           setJoinableGroups(
             data.groups.filter(
-              (g: Group) => !g.is_member && !g.is_direct // (แก้ตามที่คุยกันรอบที่แล้ว)
+              (g: Group) => g.is_member === 0 && !g.is_direct // แก้ไข is_member เป็น === 0
             )
           );
           break;
@@ -313,7 +322,8 @@ export default function Home() {
   // ▼▼▼ เพิ่มฟังก์ชันนี้เข้าไปใหม่ ▼▼▼
   const handleUserClick = (user: User) => {
     // R7: หาแชท DM ที่มีอยู่กับ user คนนี้
-    const dmGroup = myGroups.find(
+    const dmGroup = myDMs.find(
+      // <--- ✅ จุดที่ 1 (แก้เป็น myDMs)
       (g) => g.is_direct && g.group_name === user.username
     );
 
@@ -321,15 +331,14 @@ export default function Home() {
       // ถ้าเจอ ก็เปิดแชทนั้น
       handleSelectGroup(dmGroup);
     } else {
-      // ถ้าไม่เจอ (เพราะ Backend ยังไม่ได้แก้ชื่อ "Direct Message")
+      // Backend ของคุณรองรับการตั้งชื่อ DM Group เป็นชื่อเพื่อนอยู่แล้ว
+      // ถ้าหาไม่เจอ แปลว่ายังไม่มี DM Group นี้ใน State
       console.error(`Could not find existing DM group for: ${user.username}.`);
-      alert(
-        `Error: Cannot find DM chat for ${user.username}. (This requires a Backend fix to rename DM groups)`
-      );
+      alert(`Error: Cannot find DM chat for ${user.username}.`);
     }
 
     // สลับไปหน้าแชท
-    setActivePanel("panel-my-chats");
+    setActivePanel("panel-private-chats"); // <--- ✅ จุดที่ 2 (แก้เป็น panel-private-chats)
   };
   // ▲▲▲ สิ้นสุดฟังก์ชันที่เพิ่มใหม่ ▲▲▲
 
@@ -398,8 +407,8 @@ export default function Home() {
       <Sidebar
         username={username}
         activePanel={activePanel}
-        // privateChats={[]} // API Spec ไม่มี Private Chat (R7) โดยตรง
-        myGroups={myGroups} // (R11)
+        myDMs={myDMs}
+        myGroups={myRoomGroups}
         onlineUsers={onlineUsers} // (R4)
         joinableGroups={joinableGroups} // (R9)
         onGroupClick={handleSelectGroup} // (R5)

@@ -66,6 +66,7 @@ type SidebarProps = {
   username: string;
   activePanel: string;
   // privateChats: User[]; // API Spec ไม่มี private chat แยก
+  myDMs: Group[];
   myGroups: Group[];
   onlineUsers: User[];
   joinableGroups: Group[]; // ใช้ Type เดียวกัน
@@ -85,6 +86,7 @@ export default function Sidebar({
   username,
   activePanel,
   // privateChats,
+  myDMs,
   myGroups,
   onlineUsers,
   joinableGroups,
@@ -116,52 +118,77 @@ export default function Sidebar({
       >
         {/* --- Panel 1: My Chats (R7, R11) --- */}
         {/* API Spec รวม Private/Group ไว้ด้วยกัน */}
+        {/* --- Panel 1: Private Chats (R7) --- */}
         <div
-          id="panel-my-chats"
+          id="panel-private-chats"
           className={`list-panel flex-1 flex flex-col ${
-            activePanel === "panel-my-chats" ? "" : "hidden"
+            activePanel === "panel-private-chats" ? "" : "hidden"
           }`}
         >
           <header className="p-4 border-b border-gray-700">
-            <h2 className="text-xl font-bold">My Chats</h2>
+            <h2 className="text-xl font-bold">Private Chats</h2>
+          </header>
+          <div id="my-dm-list" className="flex-1 p-4 space-y-2 overflow-y-auto">
+            {myDMs.length === 0 ? (
+              <p className="text-gray-400 text-center p-4">
+                No private chats. Click a user to start one.
+              </p>
+            ) : (
+              myDMs.map((group) => (
+                <div
+                  key={group.group_id}
+                  onClick={() => onGroupClick(group)}
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-700 cursor-pointer group"
+                >
+                  <div className="flex items-center space-x-3">
+                    {getAvatar(group.group_name)}
+                    <span className="font-medium">{group.group_name}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* --- Panel 2: My Groups (R11) --- */}
+        <div
+          id="panel-groups"
+          className={`list-panel flex-1 flex flex-col ${
+            activePanel === "panel-groups" ? "" : "hidden"
+          }`}
+        >
+          <header className="p-4 border-b border-gray-700">
+            <h2 className="text-xl font-bold">My Groups</h2>
           </header>
           <div
-            id="my-chats-list"
+            id="my-groups-list"
             className="flex-1 p-4 space-y-2 overflow-y-auto"
           >
             {myGroups.length === 0 ? (
               <p className="text-gray-400 text-center p-4">
-                No chats yet. Go to Explore to join a group.
+                No groups yet. Go to Explore to join one.
               </p>
             ) : (
               myGroups.map((group) => (
                 <div
                   key={group.group_id}
                   onClick={() => onGroupClick(group)}
-                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-700 cursor-pointer group" // group นี้สำหรับ hover
+                  className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-700 cursor-pointer group"
                 >
-                  {/* ส่วนของ Avatar และ ชื่อ */}
                   <div className="flex items-center space-x-3">
-                    {group.is_direct
-                      ? getAvatar(group.group_name)
-                      : getGroupAvatar(group.group_name)}
+                    {getGroupAvatar(group.group_name)}
                     <span className="font-medium">{group.group_name}</span>
                   </div>
-
-                  {/* ปุ่ม Leave (จะแสดงเมื่อ hover) */}
-                  {/* เราจะไม่แสดงปุ่ม Leave ถ้าเป็น Direct Message (is_direct) */}
-                  {!group.is_direct && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation(); // ป้องกันไม่ให้ onGroupClick ทำงาน
-                        onLeaveGroup(group.group_id);
-                      }}
-                      className="text-xs text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-300 transition-opacity"
-                      title="Leave Group"
-                    >
-                      Leave
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation(); // ป้องกันไม่ให้ onGroupClick ทำงาน
+                      onLeaveGroup(group.group_id);
+                    }}
+                    className="text-xs text-red-400 opacity-0 group-hover:opacity-100 hover:text-red-300 transition-opacity"
+                    title="Leave Group"
+                  >
+                    Leave
+                  </button>
                 </div>
               ))
             )}
