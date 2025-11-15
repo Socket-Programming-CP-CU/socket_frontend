@@ -5,7 +5,7 @@ import { useState, useRef, useEffect } from "react";
 // ▼▼▼ [แก้ไข] เพิ่ม id เข้าไปใน Type ▼▼▼
 // ▼▼▼ [แก้ไข] เพิ่ม id เข้าไปใน Type ▼▼▼
 type Message = {
-  id: number; // <--- เพิ่ม ID ของข้อความ
+  message_id: number;
   sender: string;
   text: string;
   time: string;
@@ -59,12 +59,9 @@ export default function ChatWindow({
 
   // ▼▼▼ [เพิ่มใหม่] Handler สำหรับการกด Edit ▼▼▼
   const handleEditMessage = (msg: Message) => {
-    // ใช้วิธีง่ายๆ ด้วย prompt()
     const newText = prompt("Edit your message:", msg.text);
-
-    // ถ้า user ไม่ได้กดยกเลิก และข้อความไม่ว่างเปล่า
     if (newText && newText.trim() !== "") {
-      onUpdateMessage(msg.id, newText.trim());
+      onUpdateMessage(msg.message_id, newText.trim()); // <--- ต้องเป็น msg.message_id
     }
   };
   // ▲▲▲ [จบส่วนเพิ่มใหม่] ▲▲▲

@@ -373,7 +373,7 @@ export default function Home() {
     sendCommand({
       command: "UPDATE_MESSAGE",
       body: {
-        message_id: messageId, // <--- ใช้ message_id
+        message_id: parseInt(String(messageId)), // <--- ใช้ message_id
         message: newMessage,
       },
     });
@@ -429,18 +429,17 @@ export default function Home() {
           }
 
           return {
-            // แปลงข้อมูลให้ตรงกับ Component
-            id: m.message_id,
+            // ▼▼▼ "บังคับ" ให้ตรงนี้เป็น message_id ▼▼▼
+            message_id: m.message_id,
             sender: m.username,
             text: m.message,
             time: parsableDate.toLocaleTimeString("en-US", {
-              // <-- Use the new date
               hour: "2-digit",
               minute: "2-digit",
             }),
           };
         })}
-        onSendMessage={handleSendMessage} // (R6)
+        onSendMessage={handleSendMessage}
         onUpdateMessage={handleUpdateMessage}
       />
     </div>
