@@ -87,10 +87,7 @@ export default function Home() {
     username: string;
     password?: string;
   }) => {
-    // -----------  ▲▲▲ นี่คือจุดที่แก้ไข ▲▲▲ -----------
-
-    // TODO: เปลี่ยน URL นี้เป็น ws://... ของ Server เพื่อนคุณ
-    const socketUrl = "ws://localhost:12345"; // ใช้พอร์ต 12345 ตาม API Spec
+    const socketUrl = "ws://localhost:65432";
 
     try {
       if (
@@ -129,7 +126,6 @@ export default function Home() {
       setLoginError("Connection error.");
     };
 
-    // --- นี่คือหัวใจหลัก: ตัวรับข้อความจาก Server ---
     socket.onmessage = (event) => {
       let data;
       try {
@@ -139,26 +135,17 @@ export default function Home() {
         return;
       }
 
-      console.log("Received:", data); // Log ทุกอย่างที่ Server ส่งมา
+      console.log("Received:", data);
 
-      // --- ตัวจ่ายงาน (Dispatcher) ---
-
-      // ตรวจสอบ Response status (ตาม API Spec)
       if (data.status && data.status !== 200) {
         console.error("API Error:", data.error);
         if (data.command === "LOGIN" || data.command === "REGISTER") {
           setLoginError(data.error || "Login/Register failed.");
           socket.close();
         }
-        // TODO: แสดง Error อื่นๆ แบบ Toast
         return;
       }
-
-      // ตรวจสอบ Command ที่ Server ส่งมา
       switch (data.command) {
-        // --- ตอบกลับ Login/Register (กรณีสำเร็จ) ---
-        // (เราต้องสมมติชื่อ command ที่ backend ส่งมา)
-        // ผมจะเดาว่า command ที่ส่งมาคือ command ที่เราร้องขอไป
         case "LOGIN":
           if (data.status === 200) {
             setUsername(initialMessage.username);
@@ -173,17 +160,11 @@ export default function Home() {
             socket.close();
           }
           break;
-
-        // --- Server Pushes (ตาม API Spec) ---
         case "PUBLISH_USERS": // (R4)
-          setOnlineUsers(
-            data.users.filter(
-              (u: User) => u.username !== initialMessage.username
-            )
-          );
+          setOnlineUsers(data.users); // แสดงทุกคนรวมถึงตัวเอง
           break;
 
-        case "PUBLISH_ALL_GROUPS": // (R9)
+        case "PUBLISH_GROUPS": // (R9)
           // *ต้องให้ Backend เพิ่ม is_member: boolean ใน groups array*
           // ถ้า Backend ไม่มี is_member ให้แก้ Logic ตรงนี้
           setMyGroups(data.groups.filter((g: Group) => g.is_member));
@@ -206,7 +187,6 @@ export default function Home() {
           }
           break;
 
-        // --- ตอบกลับ Error (อีกรูปแบบ) ---
         case "ERROR": // สมมติว่ามี command นี้
           setLoginError(data.error);
           if (!isLoggedIn) socket.close(); // ปิดถ้า login ไม่ผ่าน
@@ -214,8 +194,6 @@ export default function Home() {
       }
     };
   };
-
-  // --- Handlers (ที่จะส่งให้ลูกๆ) ---
 
   const handleLogin = (name: string, pass: string) => {
     connectAndSend({
@@ -234,20 +212,17 @@ export default function Home() {
   };
 
   const handleSendMessage = (messageText: string) => {
-    // R6: CREATE_MESSAGE
     sendCommand({
       command: "CREATE_MESSAGE",
       message: messageText,
     });
-    // ไม่ต้อง setMessages เอง รอ Server ส่ง PUBLISH_CURRENT_CHAT กลับมา
   };
 
   const handleSelectGroup = (group: Group) => {
-    // R5: SELECT_GROUP
     setCurrentRoomId(group.group_id);
     setCurrentRoomName(group.group_name);
     setCurrentRoomInfo("Loading...");
-    setMessages([]); // เคลียร์ข้อความเก่า
+    setMessages([]);
 
     sendCommand({
       command: "SELECT_GROUP",
@@ -264,10 +239,12 @@ export default function Home() {
     setMessages([]);
 
     sendCommand({
-      command: "SELECT_GROUP",
+      command: "JOIN_GROUP",
       group_id: group.group_id,
+      password: "", // TODO: ใส่รหัสผ่านถ้ากลุ่มเป็น private
     });
-    // Server ควรจะส่ง PUBLISH_ALL_GROUPS มาอัปเดต list
+
+    // (หลังจาก Join สำเร็จ, Backend ควรจะส่ง PUBLISH_GROUPS และ PUBLISH_CHATS มาอัปเดตเอง)
     setActivePanel("panel-my-chats"); // สลับกลับมาหน้าแชท
   };
 
