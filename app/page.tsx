@@ -49,7 +49,6 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
 
   const socketRef = useRef<WebSocket | null>(null);
-  const healthCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const sendCommand = (payload: object) => {
     if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
@@ -59,19 +58,7 @@ export default function Home() {
       console.error("Socket is not open or not connected.");
       setLoginError("Connection lost. Please refresh.");
       setIsLoggedIn(false);
-      if (healthCheckIntervalRef.current) {
-        clearInterval(healthCheckIntervalRef.current);
-      }
     }
-  };
-
-  const startHealthCheck = () => {
-    if (healthCheckIntervalRef.current) {
-      clearInterval(healthCheckIntervalRef.current);
-    }
-    healthCheckIntervalRef.current = setInterval(() => {
-      sendCommand({ command: "HEALTH" });
-    }, 5000);
   };
 
   const connectAndSend = (initialMessage: {
@@ -106,9 +93,6 @@ export default function Home() {
 
     socket.onclose = () => {
       console.log("WebSocket disconnected.");
-      if (healthCheckIntervalRef.current) {
-        clearInterval(healthCheckIntervalRef.current);
-      }
       if (isLoggedIn) {
         setLoginError("Connection lost. Please refresh.");
         setIsLoggedIn(false);
@@ -146,7 +130,6 @@ export default function Home() {
             setUsername(initialMessage.body.username);
             setIsLoggedIn(true);
             setLoginError("");
-            startHealthCheck();
           }
           break;
         case "REGISTER":
@@ -154,7 +137,6 @@ export default function Home() {
             setUsername(initialMessage.body.username);
             setIsLoggedIn(true);
             setLoginError("");
-            startHealthCheck();
           }
           break;
         case "PUBLISH_GROUPS":
